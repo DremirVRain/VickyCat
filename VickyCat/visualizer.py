@@ -11,7 +11,7 @@ kline_cache = []
 
 def fetch_latest_kline_data(limit=60):
     """从数据库获取最新的K线数据"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute("""
         SELECT timestamp, open, high, low, close, volume, turnover FROM kline_1s

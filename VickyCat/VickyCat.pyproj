@@ -23,6 +23,8 @@
   <ItemGroup>
     <Compile Include="data_feed.py" />
     <Compile Include="signal_handler.py" />
+    <Compile Include="test.py" />
+    <Compile Include="trade.py" />
     <Compile Include="utils.py" />
     <Compile Include="VickyCat.py" />
     <Compile Include="data_processor.py" />

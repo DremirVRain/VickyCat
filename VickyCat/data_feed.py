@@ -15,7 +15,7 @@ quote_queue = {
 
 def init_db():
     """初始化数据库结构"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS quotes (
@@ -30,26 +30,43 @@ def init_db():
     conn.close()
 
 async def save_quote_to_db(quote_data: Dict[str, Any]):
-    """保存逐笔行情数据"""
+    """保存逐笔行情数据，带 sequence 字段"""
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
 
-        # 调试输出：打印要插入的数据
-        print(f"Saving quote to DB: {quote_data}")
-
+        # 获取当前秒内的最大 sequence 值
         cursor.execute('''
-            INSERT INTO quotes (timestamp, symbol, price, volume, turnover)
-            VALUES (?, ?, ?, ?, ?)
-        ''', (quote_data['timestamp'], quote_data['symbol'], quote_data['price'], quote_data['volume'], quote_data['turnover']))
+            SELECT MAX(sequence) FROM quotes 
+            WHERE timestamp = ? AND symbol = ?
+        ''', (quote_data['timestamp'], quote_data['symbol']))
+        
+        max_sequence = cursor.fetchone()[0]
+        sequence = (max_sequence + 1) if max_sequence is not None else 1
 
-        conn.commit()  # 提交事务
-        conn.close()  # 关闭数据库连接
+        # 插入数据
+        cursor.execute('''
+            INSERT INTO quotes (timestamp, symbol, sequence, price, volume, turnover)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (
+            quote_data['timestamp'],
+            quote_data['symbol'],
+            sequence,
+            quote_data['price'],
+            quote_data['volume'],
+            quote_data['turnover']
+        ))
 
-        print(f"Data successfully saved to DB: {quote_data}")  # 调试输出
+        conn.commit()
+
+        print(f"Data saved to DB: {quote_data}, sequence: {sequence}")
 
     except sqlite3.Error as e:
         print(f"Error while saving quote to DB: {e}")
+
+    finally:
+        if conn:
+            conn.close()
 
 def on_quote(symbol: str, quote: PushQuote):
     """行情推送处理"""
@@ -79,11 +96,11 @@ async def start_data_collection():
     print("开始订阅行情...")
 
     while True:
-        # 遍历每个 symbol 的队列，逐一处理数据
-        for symbol, q_queue in quote_queue.items():
-            while q_queue:
-                quote_data = q_queue.popleft()
-                await save_quote_to_db(quote_data)
-        
-        # 控制异步循环频率，防止 CPU 占用过高
+        try:
+            for symbol, q_queue in quote_queue.items():
+                while q_queue:
+                    quote_data = q_queue.popleft()
+                    await save_quote_to_db(quote_data)
+        except Exception as e:
+            print(f"Error in start_data_collection loop: {e}")
         await asyncio.sleep(0.1)

@@ -1,14 +1,16 @@
 ﻿import asyncio
 import sqlite3
-from datetime import datetime
-from typing import Dict, Any
+from datetime import datetime, timedelta
+from typing import Dict, Any, List, Optional
 
 DB_PATH = "market_data_async.db"
 
+# 数据库初始化
 def init_db():
     """初始化 kline_1s 数据表"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     cursor = conn.cursor()
+    cursor.execute('PRAGMA journal_mode=WAL;')  # 开启 WAL 模式
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS kline_1s (
             timestamp TEXT,
@@ -48,14 +50,16 @@ async def save_kline_to_db(kline_data: Dict[str, Any]):
             kline_data['turnover_diff']
         ))
         conn.commit()
-    except Exception as e:
+    except sqlite3.OperationalError as e:
         print(f"数据库插入错误: {e}")
+        conn.rollback()
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 async def start_data_processing():
     """从 quotes 表中提取数据并生成 1 秒 K 线数据"""
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
     cursor = conn.cursor()
     while True:
         try:
@@ -108,4 +112,40 @@ async def start_data_processing():
 
         except Exception as e:
             print(f"数据处理错误: {e}")
+            conn.rollback()
         await asyncio.sleep(1)
+
+def generate_kline(symbol: str, interval: int) -> List[Dict[str, Any]]:
+    """生成指定时间周期的 K 线数据"""
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    cursor = conn.cursor()
+    end_time = datetime.now()
+    start_time = end_time - timedelta(seconds=interval)
+
+    cursor.execute('''
+        SELECT open, high, low, close, volume, turnover FROM kline_1s
+        WHERE symbol = ? AND timestamp BETWEEN ? AND ?
+    ''', (symbol, start_time.strftime("%Y-%m-%d %H:%M:%S"), end_time.strftime("%Y-%m-%d %H:%M:%S")))
+    data = cursor.fetchall()
+    conn.close()
+
+    if not data:
+        return []
+
+    open_price = data[0][0]
+    high_price = max(entry[1] for entry in data)
+    low_price = min(entry[2] for entry in data)
+    close_price = data[-1][3]
+    volume = sum(entry[4] for entry in data)
+    turnover = sum(entry[5] for entry in data)
+
+    return [{
+        "timestamp": end_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "symbol": symbol,
+        "open": open_price,
+        "high": high_price,
+        "low": low_price,
+        "close": close_price,
+        "volume": volume,
+        "turnover": turnover
+    }]
