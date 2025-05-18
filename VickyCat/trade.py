@@ -16,6 +16,43 @@ class Trade:
         # 在初始化时就注册推送回调，确保实例化后立即生效
         self.ctx.set_on_order_changed(self.on_order_changed)
 
+    #region K线数据
+
+    def get_candlesticks(
+        self, 
+        symbol: str, 
+        period: Period, 
+        count: int = 100, 
+        adjust_type: AdjustType = AdjustType.NoAdjust, 
+        trade_session: Optional[TradeSessions] = TradeSessions.All
+    ) -> dict:
+        """
+        获取指定标的的 K 线数据。
+
+        Args:
+            symbol (str): 标的代码，例如 'TSLA.US'
+            period (Period): K 线周期，例如 Period.Day
+            count (int): 数据数量，最大 1000
+            adjust_type (AdjustType): 复权类型，默认为 NoAdjust
+            trade_session (Optional[TradeSessions]): 交易时段，默认为 All
+
+        Returns:
+            dict: 包含 K 线数据的响应
+        """
+        try:
+            response = self.quote_ctx.candlesticks(
+                symbol=symbol,
+                period=period,
+                count=count,
+                adjust_type=adjust_type,
+                trade_session=trade_session
+            )
+            return response
+        except Exception as e:
+            return self.handle_exception(e)
+
+    #endregion
+
     #region 成交
 
     def get_today_executions(self, symbol: Optional[str] = None, order_id: Optional[str] = None) -> dict:

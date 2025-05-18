@@ -31,13 +31,7 @@ class DatabaseManager:
         """插入逐笔行情数据，按秒生成 sequence"""
         cursor = self.conn.cursor()
         try:
-            # 获取当前秒内的最大 sequence 值
-            cursor.execute('''
-                SELECT MAX(sequence) FROM quotes 
-                WHERE timestamp = ? AND symbol = ?
-            ''', (quote_data['timestamp'], quote_data['symbol']))
-            max_sequence = cursor.fetchone()[0]
-            sequence = (max_sequence + 1) if max_sequence is not None else 1
+            sequence = self.get_next_sequence(quote_data['timestamp'], quote_data['symbol'])
 
             cursor.execute('''
                 INSERT INTO quotes (timestamp, symbol, sequence, price, volume, turnover)
@@ -53,6 +47,43 @@ class DatabaseManager:
             self.conn.commit()
         except sqlite3.Error as e:
             print(f"插入数据出错: {e}")
+            self.conn.rollback()
+
+    def get_next_sequence(self, timestamp: str, symbol: str) -> int:
+        """获取当前秒内的下一个 sequence 值"""
+        cursor = self.conn.cursor()
+        cursor.execute('''
+            SELECT MAX(sequence) FROM quotes WHERE timestamp = ? AND symbol = ?
+        ''', (timestamp, symbol))
+        max_sequence = cursor.fetchone()[0]
+        return (max_sequence + 1) if max_sequence is not None else 1
+
+    async def save_quotes_batch(self, quote_data_list: List[Dict[str, Any]]):
+        """批量保存逐笔行情数据"""
+        if not quote_data_list:
+            print("[Info] No data to insert.")
+            return
+        try:
+            cursor = self.conn.cursor()
+            data_to_insert = [
+                (
+                    data['timestamp'],
+                    data['symbol'],
+                    self.get_next_sequence(data['timestamp'], data['symbol']),
+                    data['price'],
+                    data['volume'],
+                    data['turnover']
+                ) for data in quote_data_list
+            ]
+
+            cursor.executemany('''
+                INSERT INTO quotes (timestamp, symbol, sequence, price, volume, turnover)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', data_to_insert)
+            self.conn.commit()
+
+        except Exception as e:
+            print(f"[Error] 批量插入数据失败: {e}")
             self.conn.rollback()
 
     def get_kline_1s(self, start_time: str, end_time: str, symbol: str) -> List[Dict[str, Any]]:
@@ -76,9 +107,10 @@ class DatabaseManager:
         return kline_data
 
     def archive_old_data(self):
-        """归档3天前数据并删除"""
+        """归档3天前数据并删除4天前的数据"""
         cursor = self.conn.cursor()
         archive_date = (datetime.now() - timedelta(days=3)).strftime("%Y-%m-%d")
+        delete_date = (datetime.now() - timedelta(days=4)).strftime("%Y-%m-%d")
 
         # 归档数据
         archive_path = f"archive_{archive_date}.db"
@@ -102,40 +134,9 @@ class DatabaseManager:
             INSERT INTO quotes SELECT * FROM main.quotes WHERE timestamp < ?
         ''', (archive_date,))
 
-        # 删除3天前数据
+        # 删除4天前数据
         cursor.execute('''
             DELETE FROM quotes WHERE timestamp < ?
-        ''', (archive_date,))
+        ''', (delete_date,))
 
         self.conn.commit()
-
-async def save_quotes_batch(self, quote_data_list: List[Dict[str, Any]]):
-    """批量保存逐笔行情数据"""
-    try:
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-
-        # 批量插入
-        cursor.executemany('''
-            INSERT INTO quotes (timestamp, symbol, sequence, price, volume, turnover)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', [
-            (
-                data["timestamp"],
-                data["symbol"],
-                self.get_next_sequence(data["timestamp"], data["symbol"]),
-                data["price"],
-                data["volume"],
-                data["turnover"]
-            ) for data in quote_data_list
-        ])
-
-        conn.commit()
-
-    except Exception as e:
-        print(f"[Error] 批量插入数据失败: {e}")
-        conn.rollback()
-
-    finally:
-        if conn:
-            conn.close()

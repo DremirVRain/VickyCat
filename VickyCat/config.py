@@ -1,0 +1,1 @@
+symbols = ["TSLA.US", "TSDD.US"]

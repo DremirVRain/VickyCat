@@ -5,7 +5,7 @@ from collections import deque
 from longport.openapi import QuoteContext, Config, SubType, PushQuote
 from typing import Dict, Any
 from database import DatabaseManager
-from main import symbols
+from config import symbols
 
 # 根据 symbols 动态生成 quote_queue，且每个队列最大长度为 1000
 quote_queue = {symbol: deque(maxlen=1000) for symbol in symbols}
