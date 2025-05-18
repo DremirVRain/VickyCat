@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>4ca0cf96-71bc-4b0d-b673-5d522b7de021</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>VickyCat.py</StartupFile>
+    <StartupFile>main.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -23,12 +23,12 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="data_feed.py" />
+    <Compile Include="database.py" />
     <Compile Include="signal_handler.py" />
     <Compile Include="test.py" />
     <Compile Include="trade.py" />
     <Compile Include="utils.py" />
-    <Compile Include="VickyCat.py" />
-    <Compile Include="data_processor.py" />
+    <Compile Include="main.py" />
     <Compile Include="strategy.py" />
     <Compile Include="visualizer.py" />
   </ItemGroup>
