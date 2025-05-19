@@ -1,70 +1,97 @@
 ﻿import asyncio
-from datetime import datetime
+import logging
+from datetime import datetime, timedelta
 from decimal import Decimal
 from collections import deque
+from typing import Dict, Any, List
 from longport.openapi import QuoteContext, Config, SubType, PushQuote
-from typing import Dict, Any
 from database import DatabaseManager
-from config import symbols
+from config import symbols, TRADE_SESSION
 
-# 根据 symbols 动态生成 quote_queue，且每个队列最大长度为 1000
-quote_queue = {symbol: deque(maxlen=1000) for symbol in symbols}
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-db_manager = DatabaseManager()
+class DataFeed:
+    def __init__(self):
+        self.ctx = QuoteContext(Config())
+        self.db_manager = DatabaseManager()
+        self.quote_queue = {symbol: deque(maxlen=1000) for symbol in symbols}
 
-async def save_quote_to_db(quote_data: Dict[str, Any]):
-    """保存逐笔行情数据，带 sequence 字段"""
-    try:
-        await db_manager.save_quote(quote_data)
-    except Exception as e:
-        print(f"[Error] Saving quote to DB: {e}")
+    def handle_exception(self, func):
+        """统一异常处理装饰器"""
+        async def wrapper(*args, **kwargs):
+            try:
+                return await func(*args, **kwargs)
+            except Exception as e:
+                logging.error(f"[{func.__name__}] Exception: {e}")
+        return wrapper
 
+    def is_trading_session(self) -> bool:
+        """检查当前是否为交易时间段内"""
+        now = datetime.now()
+        current_time = now.hour * 100 + now.minute
+        return TRADE_SESSION["session_start"] <= current_time <= TRADE_SESSION["session_end"]
 
-def on_quote(symbol: str, quote: PushQuote):
-    """行情推送处理"""
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    quote_data = {
-        "timestamp": timestamp,
-        "symbol": symbol,
-        "price": float(quote.last_done),
-        "volume": int(quote.current_volume) if quote.current_volume else 0,
-        "turnover": float(quote.current_turnover) if quote.current_turnover else 0.0
-    }
-    
-    # 判断 symbol 是否在订阅列表中
-    if symbol in quote_queue:
-        quote_queue[symbol].append(quote_data)
-    else:
-        print(f"[Warning] Received quote for untracked symbol: {symbol}")
+    def on_quote(self, symbol: str, quote: PushQuote):
+        """行情推送回调"""
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        quote_data = {
+            "timestamp": timestamp,
+            "symbol": symbol,
+            "price": float(quote.last_done),
+            "volume": int(quote.current_volume or 0),
+            "turnover": float(quote.current_turnover or 0.0)
+        }
+        
+        # 更新缓存，replace=True 表示更新未闭合的蜡烛数据
+        self.db_manager.data_cache.update_cache(symbol, quote_data)
+        
+        # 插入数据库并更新缓存
+        self.quote_queue[symbol].append(quote_data)
 
+    @handle_exception
+    async def start_subscription(self):
+        """启动行情订阅"""
+        self.ctx.set_on_quote(self.on_quote)
+        await self.ctx.subscribe(symbols, [SubType.Quote], True)
+        logging.info("订阅行情成功")
 
-async def start_data_collection():
-    """启动行情订阅"""
-    try:
-        config = Config.from_env()
-        ctx = QuoteContext(config)
-        ctx.set_on_quote(on_quote)
-        ctx.subscribe(symbols, [SubType.Quote], True)
-        print("[Info] 开始订阅行情...")
-    except Exception as e:
-        print(f"[Error] 订阅行情失败: {e}")
-        return
+    @handle_exception
+    async def data_saver(self):
+        """异步保存行情数据"""
+        while True:
+            if not self.is_trading_session():
+                await asyncio.sleep(1)
+                continue
 
-    while True:
-        try:
-            # 批量处理每个 symbol 的数据
-            all_data = []
-            for symbol, q_queue in quote_queue.items():
-                while q_queue:
-                    quote_data = q_queue.popleft()
-                    all_data.append(quote_data)
+            tasks = [self.save_quote_data(symbol) for symbol in symbols]
+            if tasks:
+                await asyncio.gather(*tasks)
 
-            # 批量插入数据库，减少数据库连接频率
-            if all_data:
-                await db_manager.save_quotes_batch(all_data)
+            await asyncio.sleep(0.1)
 
-        except Exception as e:
-            print(f"[Error] Data collection loop: {e}")
+    @handle_exception
+    async def save_quote_data(self, symbol: str):
+        """保存单个 symbol 的行情数据"""
+        quotes = list(self.quote_queue[symbol])
+        self.quote_queue[symbol].clear()
+        if quotes:
+            await self.db_manager.save_quotes_batch(quotes)
 
-        # 限制循环频率，避免 CPU 占用过高
-        await asyncio.sleep(0.1)
+    @handle_exception
+    async def schedule_archive_task(self):
+        """调度归档任务，每天盘后 16:10 触发"""
+        while True:
+            now = datetime.now()
+            if now.hour == 16 and now.minute == 10:
+                logging.info("开始数据归档...")
+                await self.db_manager.archive_old_data()
+
+            await asyncio.sleep(60)
+
+    async def run(self):
+        """启动 DataFeed 模块"""
+        await asyncio.gather(
+            self.start_subscription(),
+            self.data_saver(),
+            self.schedule_archive_task(),
+        )

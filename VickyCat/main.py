@@ -1,14 +1,11 @@
 ﻿import asyncio
-from data_feed import start_data_collection
+from data_feed import DataFeed
 from strategy import process_strategy
 from config import symbols
 
 async def main():
-    # 启动数据采集和策略执行
-    await asyncio.gather(
-        start_data_collection(),
-        #*[process_strategy(symbol) for symbol in symbols]
-    )
+    data_feed = DataFeed()
+    await data_feed.run()
 
 if __name__ == "__main__":
     try:
