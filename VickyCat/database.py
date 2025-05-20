@@ -1,10 +1,11 @@
 ﻿import os
 import sqlite3
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from datetime import datetime, timedelta
 from config import TRADE_SESSION
 from utils.archive_manager import ArchiveManager
 from utils.data_cache import DataCache
+from utils.trading_time_manager import TradingTimeManager
 
 DB_PATH = "market_data_async.db"
 
@@ -47,27 +48,15 @@ class DatabaseManager:
         ''')
         self.conn.commit()
 
-    def is_trading_session(exchange: str) -> bool:
+    def is_trading_session(exchange: str = 'US') -> bool:
         """
         检查当前是否为指定交易所的交易时间段内
         :param exchange: 交易所名称 ('US', 'HK', 'CN')
         :return: True 表示当前为交易时间段内，False 表示非交易时间段
         """
-        now = datetime.now()
-        current_time = now.hour * 100 + now.minute
+        manager = TradingTimeManager(exchange)
 
-        # 获取当前交易所的交易时间段
-        session = TRADE_SESSION.get(exchange)
-        if not session:
-            print(f"[Warning] 未定义的交易所：{exchange}")
-            return False
-
-        # 遍历交易时段，检查是否处于交易时间段内
-        for period, (start, end) in session.items():
-            if start <= current_time <= end:
-                return True
-
-        return False
+        return manager.is_trading_time()
 
     def get_next_sequence(self, timestamp: str, symbol: str) -> int:
         """获取当前秒内的下一个 sequence 值"""
@@ -235,3 +224,18 @@ class DatabaseManager:
             })
 
         return kline_1m
+
+    def get_quotes(self, symbol: str, start_time: Optional[str] = None, end_time: Optional[str] = None) -> List[Dict[str, Any]]:
+        cursor = self.conn.cursor()
+        sql = "SELECT * FROM quotes WHERE symbol = ?"
+        params = [symbol]
+        if start_time:
+            sql += " AND timestamp >= ?"
+            params.append(start_time)
+        if end_time:
+            sql += " AND timestamp <= ?"
+            params.append(end_time)
+        sql += " ORDER BY timestamp ASC"
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        return [dict(zip([column[0] for column in cursor.description], row)) for row in rows]

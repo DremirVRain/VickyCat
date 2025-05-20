@@ -25,12 +25,6 @@ class DataFeed:
                 logging.error(f"[{func.__name__}] Exception: {e}")
         return wrapper
 
-    def is_trading_session(self) -> bool:
-        """检查当前是否为交易时间段内"""
-        now = datetime.now()
-        current_time = now.hour * 100 + now.minute
-        return TRADE_SESSION["session_start"] <= current_time <= TRADE_SESSION["session_end"]
-
     def on_quote(self, symbol: str, quote: PushQuote):
         """行情推送回调"""
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -59,7 +53,7 @@ class DataFeed:
     async def data_saver(self):
         """异步保存行情数据"""
         while True:
-            if not self.is_trading_session():
+            if not self.db_manager.is_trading_session():
                 await asyncio.sleep(1)
                 continue
 
@@ -84,7 +78,7 @@ class DataFeed:
             now = datetime.now()
             if now.hour == 16 and now.minute == 10:
                 logging.info("开始数据归档...")
-                await self.db_manager.archive_old_data()
+                self.db_manager.archive_old_data()
 
             await asyncio.sleep(60)
 

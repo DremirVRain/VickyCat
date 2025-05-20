@@ -1,4 +1,4 @@
-import os
+ï»¿import os
 import sqlite3
 from datetime import datetime, timedelta
 from typing import Optional
@@ -13,57 +13,48 @@ class ArchiveManager:
         os.makedirs(self.archive_dir, exist_ok=True)
 
     def archive_old_data(self, days_to_keep: int = 3, days_to_delete: int = 4) -> None:
-        """
-        ¹éµµ²¢ÇåÀí¾ÉÊı¾İ£º
-        - ¹éµµ `days_to_keep` ÌìÇ°µÄÊı¾İµ½µ¥¶ÀÊı¾İ¿âÎÄ¼ş
-        - É¾³ı `days_to_delete` ÌìÇ°µÄÊı¾İ
-
-        Args:
-            days_to_keep (int): ¹éµµµÄÊı¾İÌìÊı£¨Ä¬ÈÏ 3 ÌìÇ°Êı¾İ£©
-            days_to_delete (int): É¾³ıµÄÊı¾İÌìÊı£¨Ä¬ÈÏ 4 ÌìÇ°Êı¾İ£©
-        """
         try:
-            conn = sqlite3.connect(self.db_path)
-            cursor = conn.cursor()
-
             archive_date = (datetime.now() - timedelta(days=days_to_keep)).strftime("%Y-%m-%d")
             delete_date = (datetime.now() - timedelta(days=days_to_delete)).strftime("%Y-%m-%d")
             archive_path = os.path.join(self.archive_dir, f"archive_{archive_date}.db")
 
-            # ³õÊ¼»¯¹éµµÊı¾İ¿â
-            if not os.path.exists(archive_path):
-                with sqlite3.connect(archive_path) as archive_conn:
-                    archive_conn.execute('''
-                        CREATE TABLE IF NOT EXISTS quotes (
-                            timestamp TEXT,
-                            symbol TEXT,
-                            sequence INTEGER,
-                            price REAL,
-                            volume INTEGER,
-                            turnover REAL,
-                            PRIMARY KEY (timestamp, symbol, sequence)
-                        )
-                    ''')
+            # åˆå§‹åŒ–å½’æ¡£åº“å¹¶å¤åˆ¶æ•°æ®ï¼ˆç‹¬ç«‹è¿æ¥ï¼‰
+            with sqlite3.connect(archive_path) as archive_conn, \
+                 sqlite3.connect(self.db_path) as main_conn:
+            
+                # ç¡®ä¿ archive åº“æœ‰è¡¨ç»“æ„
+                archive_conn.execute('''
+                    CREATE TABLE IF NOT EXISTS quotes (
+                        timestamp TEXT,
+                        symbol TEXT,
+                        sequence INTEGER,
+                        price REAL,
+                        volume INTEGER,
+                        turnover REAL,
+                        PRIMARY KEY (timestamp, symbol, sequence)
+                    )
+                ''')
 
-            # ¹éµµÊı¾İ
-            cursor.execute(f'''
-                ATTACH DATABASE '{archive_path}' AS archive_db;
-                INSERT OR IGNORE INTO archive_db.quotes
-                SELECT * FROM quotes WHERE timestamp < ?;
-                DETACH DATABASE archive_db;
-            ''', (archive_date,))
+                # è·å–éœ€è¦å½’æ¡£çš„æ•°æ®
+                data = main_conn.execute(
+                    "SELECT * FROM quotes WHERE timestamp < ?", (archive_date,)
+                ).fetchall()
 
-            # É¾³ı³¬ÆÚÊı¾İ
-            cursor.execute('''
-                DELETE FROM quotes WHERE timestamp < ?
-            ''', (delete_date,))
+                # å†™å…¥å½’æ¡£æ•°æ®åº“
+                if data:
+                    archive_conn.executemany('''
+                        INSERT OR IGNORE INTO quotes (timestamp, symbol, sequence, price, volume, turnover)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', data)
 
-            conn.commit()
-            print(f"[ArchiveManager] Êı¾İ¹éµµÍê³É£¬¹éµµÎÄ¼ş: {archive_path}")
+                print(f"[ArchiveManager] æˆåŠŸå½’æ¡£ {len(data)} æ¡æ•°æ®è‡³ {archive_path}")
+
+            # åˆ é™¤æ—§æ•°æ®ï¼ˆå¦èµ·è¿æ¥ï¼‰
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("DELETE FROM quotes WHERE timestamp < ?", (delete_date,))
+                conn.commit()
 
         except sqlite3.Error as e:
-            print(f"[ArchiveManager] Êı¾İ¹éµµÊ§°Ü: {e}")
+            print(f"[ArchiveManager] æ•°æ®å½’æ¡£å¤±è´¥: {e}")
 
-        finally:
-            if conn:
-                conn.close()
+
