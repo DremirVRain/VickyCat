@@ -27,6 +27,15 @@
     <Compile Include="data_feed.py" />
     <Compile Include="database.py" />
     <Compile Include="signal_handler.py" />
+    <Compile Include="strategy\base_strategy.py" />
+    <Compile Include="strategy\candle_pattern_strategy.py" />
+    <Compile Include="strategy\event_driven.py" />
+    <Compile Include="strategy\indicator_strategy.py" />
+    <Compile Include="strategy\micro_structure.py" />
+    <Compile Include="strategy\signal.py" />
+    <Compile Include="strategy\strategy_manager.py" />
+    <Compile Include="strategy\structure_strategy.py" />
+    <Compile Include="strategy\volume_strategy.py" />
     <Compile Include="test.py" />
     <Compile Include="trade.py" />
     <Compile Include="utils.py" />
@@ -41,6 +50,7 @@
     <Compile Include="visualizer.py" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="strategy\" />
     <Folder Include="utils\" />
   </ItemGroup>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Python Tools\Microsoft.PythonTools.targets" />
