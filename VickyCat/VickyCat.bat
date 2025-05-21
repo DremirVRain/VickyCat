@@ -1,1 +1,1 @@
-python VickyCat.py
+python main.py

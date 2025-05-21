@@ -68,56 +68,57 @@ class DatabaseManager:
         return (max_sequence + 1) if max_sequence is not None else 1
 
     async def save_quotes_batch(self, quote_data_list: List[Dict[str, Any]]):
-        """批量保存逐笔行情数据，支持数据压缩与异常日志记录"""
         if not quote_data_list:
-            print("[Info] No data to insert.")
             return
 
         try:
             cursor = self.conn.cursor()
-
-            # 构建插入数据，新增异常数据缓存
             data_to_insert = []
             error_data = []
 
+            # 新增：记录每个 timestamp+symbol 的 sequence
+            sequence_map = {}
+
             for data in quote_data_list:
                 try:
-                    if not self.is_trading_session():
-                        print(f"[Info] 非交易时段数据忽略: {data}")
-                        continue
-                    
                     symbol = data["symbol"]
                     timestamp = data["timestamp"]
 
+                    key = (timestamp, symbol)
+                    if key not in sequence_map:
+                        # 先查数据库中已有最大值
+                        sequence_map[key] = self.get_next_sequence(timestamp, symbol)
+                    else:
+                        sequence_map[key] += 1
+
+                    seq = sequence_map[key]
+
+                    print(f"[Quote] 插入: {timestamp} | {symbol} | {seq} | "
+                          f"price={data['price']} vol={data['volume']} turnover={data['turnover']}")
+
                     data_to_insert.append((
-                        data['timestamp'],
-                        data['symbol'],
-                        self.get_next_sequence(data['timestamp'], data['symbol']),
-                        data['price'],
-                        data['volume'],
-                        data['turnover']
+                        timestamp, symbol, seq,
+                        data['price'], data['volume'], data['turnover']
                     ))
 
                 except KeyError as e:
                     print(f"[Warning] 数据字段缺失: {data} - {e}")
-                    error_data.append(data)
+                    error_data.append((data, str(e)))
 
-            # 插入有效数据
             if data_to_insert:
                 cursor.executemany('''
                     INSERT INTO quotes (timestamp, symbol, sequence, price, volume, turnover)
                     VALUES (?, ?, ?, ?, ?, ?)
                 ''', data_to_insert)
                 self.conn.commit()
-                print(f"[Info] 成功插入 {len(data_to_insert)} 条数据。")
 
-            # 处理异常数据
-            for data, error_msg in error_data:
-                self.log_error_data(data, error_msg)
+            for data, msg in error_data:
+                self.log_error_data(data, msg)
 
         except Exception as e:
             print(f"[Error] 批量插入数据失败: {e}")
             self.conn.rollback()
+
 
     def log_error_data(self, data: Dict[str, Any], error_message: str):
         """记录异常数据到 quote_errors 表"""

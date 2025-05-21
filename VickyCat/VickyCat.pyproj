@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>4ca0cf96-71bc-4b0d-b673-5d522b7de021</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>data_replay_test.py</StartupFile>
+    <StartupFile>main.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -26,7 +26,6 @@
     <Compile Include="config.py" />
     <Compile Include="data_feed.py" />
     <Compile Include="database.py" />
-    <Compile Include="data_replay_test.py" />
     <Compile Include="signal_handler.py" />
     <Compile Include="test.py" />
     <Compile Include="trade.py" />

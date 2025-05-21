@@ -1,4 +1,5 @@
 ﻿import asyncio
+import functools
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -10,20 +11,21 @@ from config import symbols, TRADE_SESSION
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
+def handle_exception(func):
+    """统一异步异常处理装饰器"""
+    @functools.wraps(func)
+    async def wrapper(*args, **kwargs):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            logging.error(f"[{func.__name__}] Exception: {e}")
+    return wrapper
+
 class DataFeed:
     def __init__(self):
-        self.ctx = QuoteContext(Config())
+        self.ctx = QuoteContext(Config.from_env())
         self.db_manager = DatabaseManager()
         self.quote_queue = {symbol: deque(maxlen=1000) for symbol in symbols}
-
-    def handle_exception(self, func):
-        """统一异常处理装饰器"""
-        async def wrapper(*args, **kwargs):
-            try:
-                return await func(*args, **kwargs)
-            except Exception as e:
-                logging.error(f"[{func.__name__}] Exception: {e}")
-        return wrapper
 
     def on_quote(self, symbol: str, quote: PushQuote):
         """行情推送回调"""
@@ -46,17 +48,13 @@ class DataFeed:
     async def start_subscription(self):
         """启动行情订阅"""
         self.ctx.set_on_quote(self.on_quote)
-        await self.ctx.subscribe(symbols, [SubType.Quote], True)
+        self.ctx.subscribe(symbols, [SubType.Quote], True)
         logging.info("订阅行情成功")
 
     @handle_exception
     async def data_saver(self):
         """异步保存行情数据"""
         while True:
-            if not self.db_manager.is_trading_session():
-                await asyncio.sleep(1)
-                continue
-
             tasks = [self.save_quote_data(symbol) for symbol in symbols]
             if tasks:
                 await asyncio.gather(*tasks)
