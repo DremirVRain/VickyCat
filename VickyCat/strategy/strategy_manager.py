@@ -1,4 +1,4 @@
-﻿from signal import Signal
+﻿from strategy_signal import Signal
 from typing import List, Union
 
 class StrategyManager:

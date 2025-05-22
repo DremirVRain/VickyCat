@@ -1,6 +1,6 @@
 ﻿# strategies/volume.py
 from base_strategy import BaseStrategy
-from signal import Signal, SignalType
+from strategy_signal import Signal, SignalType
 from typing import Optional
 from datetime import datetime
 
