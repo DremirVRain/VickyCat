@@ -24,54 +24,54 @@ class CandlePatternStrategy(BaseStrategy):
         return None
 
 # ========================
-# ¹¤¾ßº¯Êı£¨½¨ÒéÒÆÈë utils.py£©
+# å·¥å…·å‡½æ•°ï¼ˆå»ºè®®ç§»å…¥ utils.pyï¼‰
 # ========================
 
 def is_bullish(k):
-    """ÑôÏßÅĞ¶Ï"""
+    """é˜³çº¿åˆ¤æ–­"""
     return k["close"] > k["open"]
 
 def is_bearish(k):
-    """ÒõÏßÅĞ¶Ï"""
+    """é˜´çº¿åˆ¤æ–­"""
     return k["close"] < k["open"]
 
 def body(k):
-    """ÊµÌå³¤¶È"""
+    """å®ä½“é•¿åº¦"""
     return abs(k["close"] - k["open"])
 
 def candle_range(k):
-    """Õû¸ùKÏß³¤¶È£¨¸ßµÍ¼Û²î£©"""
+    """æ•´æ ¹Kçº¿é•¿åº¦ï¼ˆé«˜ä½ä»·å·®ï¼‰"""
     return k["high"] - k["low"]
 
 def upper_shadow(k):
-    """ÉÏÓ°Ïß³¤¶È"""
+    """ä¸Šå½±çº¿é•¿åº¦"""
     return k["high"] - max(k["close"], k["open"])
 
 def lower_shadow(k):
-    """ÏÂÓ°Ïß³¤¶È"""
+    """ä¸‹å½±çº¿é•¿åº¦"""
     return min(k["close"], k["open"]) - k["low"]
 
 def body_ratio(k):
-    """ÊµÌåÕ¼Õû¸ùKÏß±ÈÀı"""
+    """å®ä½“å æ•´æ ¹Kçº¿æ¯”ä¾‹"""
     r = candle_range(k)
     return body(k) / r if r > 0 else 0
 
 def upper_shadow_ratio(k):
-    """ÉÏÓ°ÏßÕ¼Õû¸ùKÏß±ÈÀı"""
+    """ä¸Šå½±çº¿å æ•´æ ¹Kçº¿æ¯”ä¾‹"""
     r = candle_range(k)
     return upper_shadow(k) / r if r > 0 else 0
 
 def lower_shadow_ratio(k):
-    """ÏÂÓ°ÏßÕ¼Õû¸ùKÏß±ÈÀı"""
+    """ä¸‹å½±çº¿å æ•´æ ¹Kçº¿æ¯”ä¾‹"""
     r = candle_range(k)
     return lower_shadow(k) / r if r > 0 else 0
 
 def is_doji(k, max_body_ratio=0.1):
-    """Ê®×ÖĞÇÅĞ¶Ï£¬Ä¬ÈÏÊµÌå²»³¬¹ı10%"""
+    """åå­—æ˜Ÿåˆ¤æ–­ï¼Œé»˜è®¤å®ä½“ä¸è¶…è¿‡10%"""
     return body_ratio(k) <= max_body_ratio
 
 def is_marubozu(k, min_body_ratio=0.9, max_upper_shadow_ratio=0.05, max_lower_shadow_ratio=0.05):
-    """¹âÍ·¹â½ÅÏßÅĞ¶Ï"""
+    """å…‰å¤´å…‰è„šçº¿åˆ¤æ–­"""
     return (
         body_ratio(k) >= min_body_ratio and
         upper_shadow_ratio(k) <= max_upper_shadow_ratio and
@@ -79,25 +79,25 @@ def is_marubozu(k, min_body_ratio=0.9, max_upper_shadow_ratio=0.05, max_lower_sh
     )
 
 def is_inside_bar(current_k, prev_k):
-    """ÄÚ°üÏßÅĞ¶Ï£¬µ±Ç°KÏß±»ÉÏÒ»¸ùÍêÈ«°ü¹ü"""
+    """å†…åŒ…çº¿åˆ¤æ–­ï¼Œå½“å‰Kçº¿è¢«ä¸Šä¸€æ ¹å®Œå…¨åŒ…è£¹"""
     return (
         current_k["high"] <= prev_k["high"] and
         current_k["low"] >= prev_k["low"]
     )
 
 def gap_up(current_k, prev_k):
-    """Ìø¿Õ¸ß¿ª"""
+    """è·³ç©ºé«˜å¼€"""
     return current_k["low"] > prev_k["high"]
 
 def gap_down(current_k, prev_k):
-    """Ìø¿ÕµÍ¿ª"""
+    """è·³ç©ºä½å¼€"""
     return current_k["high"] < prev_k["low"]
 
 def is_engulfing(current_k, prev_k, bullish=True):
     """
-    ÍÌÃ»ĞÎÌ¬ÅĞ¶Ï
-    bullish=TrueÅĞ¶Ï¿´ÕÇÍÌÃ»£¨ÑôÏß°üÒõÏß£©
-    bullish=FalseÅĞ¶Ï¿´µøÍÌÃ»£¨ÒõÏß°üÑôÏß£©
+    åæ²¡å½¢æ€åˆ¤æ–­
+    bullish=Trueåˆ¤æ–­çœ‹æ¶¨åæ²¡ï¼ˆé˜³çº¿åŒ…é˜´çº¿ï¼‰
+    bullish=Falseåˆ¤æ–­çœ‹è·Œåæ²¡ï¼ˆé˜´çº¿åŒ…é˜³çº¿ï¼‰
     """
     if bullish:
         return (
@@ -115,7 +115,7 @@ def is_engulfing(current_k, prev_k, bullish=True):
         )
 
 # ========================
-# ĞÎÌ¬Àà
+# å•kçº¿åè½¬å½¢æ€
 # ========================
 
 class HammerPattern(CandlePatternStrategy):
@@ -136,7 +136,7 @@ class HammerPattern(CandlePatternStrategy):
         r = candle_range(k)
         if r == 0:
             return None
-        # ÏÂÓ°Ïß³¤£¬ÊµÌåÖÁÉÙÂú×ã×îĞ¡±ÈÀı£¬ÉÏÓ°Ïß½Ï¶Ì
+        # ä¸‹å½±çº¿é•¿ï¼Œå®ä½“è‡³å°‘æ»¡è¶³æœ€å°æ¯”ä¾‹ï¼Œä¸Šå½±çº¿è¾ƒçŸ­
         if (
             b / r >= self.min_body_ratio and
             lower_shadow(k) > self.shadow_to_body_ratio * b and
@@ -165,7 +165,7 @@ class HangingManPattern(CandlePatternStrategy):
         r = candle_range(k)
         if r == 0:
             return None
-        # ÀàËÆ´¸×ÓÏß£¬µ«ÊµÌåÎªÒõÏß£¬ÇÒÏÂÓ°Ïß³¤£¬ÉÏÓ°Ïß¶Ì
+        # ç±»ä¼¼é”¤å­çº¿ï¼Œä½†å®ä½“ä¸ºé˜´çº¿ï¼Œä¸”ä¸‹å½±çº¿é•¿ï¼Œä¸Šå½±çº¿çŸ­
         if (
             b / r >= self.min_body_ratio and
             lower_shadow(k) > self.shadow_to_body_ratio * b and
@@ -194,7 +194,7 @@ class InvertedHammerPattern(CandlePatternStrategy):
         r = candle_range(k)
         if r == 0:
             return None
-        # ³¤ÉÏÓ°Ïß£¬ÊµÌåÕ¼±È×îĞ¡£¬ÇÒÏÂÓ°Ïß½Ï¶Ì£¬ÊµÌåÎªÑôÏß
+        # é•¿ä¸Šå½±çº¿ï¼Œå®ä½“å æ¯”æœ€å°ï¼Œä¸”ä¸‹å½±çº¿è¾ƒçŸ­ï¼Œå®ä½“ä¸ºé˜³çº¿
         if (
             b / r >= self.min_body_ratio and
             upper_shadow(k) > self.shadow_to_body_ratio * b and
@@ -223,7 +223,7 @@ class ShootingStarPattern(CandlePatternStrategy):
         r = candle_range(k)
         if r == 0:
             return None
-        # ÀàËÆµ¹´¸×ÓÏß£¬µ«ÎªÒõÏß£¬³¤ÉÏÓ°Ïß£¬¶ÌÏÂÓ°Ïß
+        # ç±»ä¼¼å€’é”¤å­çº¿ï¼Œä½†ä¸ºé˜´çº¿ï¼Œé•¿ä¸Šå½±çº¿ï¼ŒçŸ­ä¸‹å½±çº¿
         if (
             b / r >= self.min_body_ratio and
             upper_shadow(k) > self.shadow_to_body_ratio * b and
@@ -234,7 +234,7 @@ class ShootingStarPattern(CandlePatternStrategy):
         return None
 
 # ========================
-# Ë«KÏß·´×ªĞÎÌ¬
+# åŒKçº¿åè½¬å½¢æ€
 # ========================
 
 class BullishEngulfingPattern(CandlePatternStrategy):
@@ -242,7 +242,7 @@ class BullishEngulfingPattern(CandlePatternStrategy):
 
     def __init__(self, symbol: str, open_close_overlap_ratio=0.0):
         super().__init__(symbol)
-        self.open_close_overlap_ratio = open_close_overlap_ratio  # ÔÊĞí¿ªÅÌ¼Û°üÈİµÄ±ÈÀı£¨0ÎªÍêÈ«°üÈİ£©
+        self.open_close_overlap_ratio = open_close_overlap_ratio  # å…è®¸å¼€ç›˜ä»·åŒ…å®¹çš„æ¯”ä¾‹ï¼ˆ0ä¸ºå®Œå…¨åŒ…å®¹ï¼‰
 
     def required_candles(self) -> int:
         return 2
@@ -250,7 +250,7 @@ class BullishEngulfingPattern(CandlePatternStrategy):
     def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
         prev, curr = klines[-2], klines[-1]
         if is_bearish(prev) and is_bullish(curr):
-            # curr¿ªÅÌ¼Û±ØĞëµÍÓÚprevÊÕÅÌ¼Û * (1 + overlap_ratio)£¬close±ØĞë´óÓÚprev¿ªÅÌ¼Û * (1 - overlap_ratio)
+            # currå¼€ç›˜ä»·å¿…é¡»ä½äºprevæ”¶ç›˜ä»· * (1 + overlap_ratio)ï¼Œcloseå¿…é¡»å¤§äºprevå¼€ç›˜ä»· * (1 - overlap_ratio)
             if curr["open"] < prev["close"] * (1 + self.open_close_overlap_ratio) and \
                curr["close"] > prev["open"] * (1 - self.open_close_overlap_ratio):
                 return self.signal_type
@@ -281,7 +281,7 @@ class PiercingLinePattern(CandlePatternStrategy):
 
     def __init__(self, symbol: str, min_close_above_midpoint_ratio=0.5):
         super().__init__(symbol)
-        self.min_close_above_midpoint_ratio = min_close_above_midpoint_ratio  # ×îµÍ³¬¹ıÇ°Ò»KÊµÌåÖĞµã±ÈÀı
+        self.min_close_above_midpoint_ratio = min_close_above_midpoint_ratio  # æœ€ä½è¶…è¿‡å‰ä¸€Kå®ä½“ä¸­ç‚¹æ¯”ä¾‹
 
     def required_candles(self) -> int:
         return 2
@@ -316,7 +316,7 @@ class DarkCloudCoverPattern(CandlePatternStrategy):
         return None
 
 # ========================
-# ÈıKÏß·´×ªĞÎÌ¬
+# ä¸‰Kçº¿åè½¬å½¢æ€
 # ========================
 
 class MorningStarPattern(CandlePatternStrategy):
@@ -324,8 +324,8 @@ class MorningStarPattern(CandlePatternStrategy):
 
     def __init__(self, symbol: str, max_mid_body_ratio=0.3, min_third_close_ratio=0.5):
         super().__init__(symbol)
-        self.max_mid_body_ratio = max_mid_body_ratio  # ÖĞ¼äKÊµÌå×î´ó±ÈÀı£¨Ê®×ÖĞÇ»òĞ¡ÊµÌå£©
-        self.min_third_close_ratio = min_third_close_ratio  # µÚÈı¸ùKÏßÊÕÅÌ±ØĞëÍ»ÆÆÇ°KÊµÌåÒ»°ëÒÔÉÏ±ÈÀı
+        self.max_mid_body_ratio = max_mid_body_ratio  # ä¸­é—´Kå®ä½“æœ€å¤§æ¯”ä¾‹ï¼ˆåå­—æ˜Ÿæˆ–å°å®ä½“ï¼‰
+        self.min_third_close_ratio = min_third_close_ratio  # ç¬¬ä¸‰æ ¹Kçº¿æ”¶ç›˜å¿…é¡»çªç ´å‰Kå®ä½“ä¸€åŠä»¥ä¸Šæ¯”ä¾‹
 
     def required_candles(self) -> int:
         return 3
@@ -364,7 +364,7 @@ class ThreeWhiteSoldiersPattern(CandlePatternStrategy):
 
     def __init__(self, symbol: str, min_close_increase_ratio=0.01):
         super().__init__(symbol)
-        self.min_close_increase_ratio = min_close_increase_ratio  # Á¬ĞøÈı¸ùÑôÏßÊÕÅÌ¼Û±ØĞëÖÁÉÙÉÏÕÇ±ÈÀı
+        self.min_close_increase_ratio = min_close_increase_ratio  # è¿ç»­ä¸‰æ ¹é˜³çº¿æ”¶ç›˜ä»·å¿…é¡»è‡³å°‘ä¸Šæ¶¨æ¯”ä¾‹
 
     def required_candles(self) -> int:
         return 3
@@ -397,7 +397,7 @@ class ThreeBlackCrowsPattern(CandlePatternStrategy):
         return None
 
 # ========================
-# ³ÖĞøĞÎÌ¬
+# æŒç»­å½¢æ€
 # ========================
 
 class RisingThreePattern(CandlePatternStrategy):
@@ -437,11 +437,11 @@ class FallingThreePattern(CandlePatternStrategy):
         return None
 
 # ========================
-# Ê®×ÖĞÇ
+# åå­—æ˜Ÿ
 # ========================
 
 class DojiPattern(CandlePatternStrategy):
-    signal_type = None  # ÖĞĞÔĞÅºÅ
+    signal_type = None  # ä¸­æ€§ä¿¡å·
 
     def __init__(self, symbol: str, max_body_ratio=0.1):
         super().__init__(symbol)
@@ -507,7 +507,7 @@ class GravestoneDojiPattern(CandlePatternStrategy):
         return None
 
 # ========================
-# ¶îÍâĞÎÌ¬
+# é¢å¤–å½¢æ€
 # ========================
 
 class BullishHaramiPattern(CandlePatternStrategy):
@@ -515,7 +515,7 @@ class BullishHaramiPattern(CandlePatternStrategy):
 
     def __init__(self, symbol: str, max_body_ratio=0.5):
         super().__init__(symbol)
-        self.max_body_ratio = max_body_ratio  # µÚ¶ş¸ùKÏßÊµÌå×î´óÏà¶ÔÓÚµÚÒ»¸ùµÄ±ÈÀı
+        self.max_body_ratio = max_body_ratio  # ç¬¬äºŒæ ¹Kçº¿å®ä½“æœ€å¤§ç›¸å¯¹äºç¬¬ä¸€æ ¹çš„æ¯”ä¾‹
 
     def required_candles(self) -> int:
         return 2
@@ -555,7 +555,7 @@ class TweezerBottomPattern(CandlePatternStrategy):
 
     def __init__(self, symbol: str, max_low_diff=0.001):
         super().__init__(symbol)
-        self.max_low_diff = max_low_diff  # Á½¸ùKÏß×îµÍ¼Û×î´ó²îÒì±ÈÀı
+        self.max_low_diff = max_low_diff  # ä¸¤æ ¹Kçº¿æœ€ä½ä»·æœ€å¤§å·®å¼‚æ¯”ä¾‹
 
     def required_candles(self) -> int:
         return 2
@@ -585,7 +585,7 @@ class TweezerTopPattern(CandlePatternStrategy):
         return None
     
 # ========================
-# ²»È·¶¨ĞÎÌ¬
+# ä¸ç¡®å®šå½¢æ€
 # ========================
 
 class InsideBarPattern(CandlePatternStrategy):
@@ -596,7 +596,7 @@ class InsideBarPattern(CandlePatternStrategy):
 
     def is_pattern(self, klines: list) -> Optional[SignalType]:
         prev, curr = klines[-2], klines[-1]
-        # µ±Ç°KÏß×î¸ß¼Û²»³¬¹ıÇ°KÏß×î¸ß¼Û£¬×îµÍ¼Û²»µÍÓÚÇ°KÏß×îµÍ¼Û
+        # å½“å‰Kçº¿æœ€é«˜ä»·ä¸è¶…è¿‡å‰Kçº¿æœ€é«˜ä»·ï¼Œæœ€ä½ä»·ä¸ä½äºå‰Kçº¿æœ€ä½ä»·
         if curr["high"] <= prev["high"] and curr["low"] >= prev["low"]:
             return self.signal_type
         return None
@@ -616,7 +616,7 @@ class MarubozuPattern(CandlePatternStrategy):
         upper_shadow_len = k["high"] - max(k["close"], k["open"])
         lower_shadow_len = min(k["close"], k["open"]) - k["low"]
 
-        # ÊµÌåÕ¼±ÈÖÁÉÙ95%
+        # å®ä½“å æ¯”è‡³å°‘95%
         body_ratio = body_len / r
         upper_shadow_ratio = upper_shadow_len / r
         lower_shadow_ratio = lower_shadow_len / r
@@ -664,13 +664,13 @@ class ThreeLineStrikePattern(CandlePatternStrategy):
     def is_pattern(self, klines: list) -> Optional[SignalType]:
         k1, k2, k3, k4 = klines[-4], klines[-3], klines[-2], klines[-1]
 
-        # ÅĞ¶ÏÇ°Èı¸ùÊÇ·ñÍ¬É«£¨¶¼¶à»ò¶¼¿Õ£©
+        # åˆ¤æ–­å‰ä¸‰æ ¹æ˜¯å¦åŒè‰²ï¼ˆéƒ½å¤šæˆ–éƒ½ç©ºï¼‰
         bullish_three = all(is_bullish(k) for k in [k1, k2, k3])
         bearish_three = all(is_bearish(k) for k in [k1, k2, k3])
         if not (bullish_three or bearish_three):
             return None
 
-        # µÚËÄ¸ùÊÇ·ñ·´ÏòÇÒ´óÊµÌå¸²¸ÇÇ°Èı¸ù¿ªÊÕÅÌ
+        # ç¬¬å››æ ¹æ˜¯å¦åå‘ä¸”å¤§å®ä½“è¦†ç›–å‰ä¸‰æ ¹å¼€æ”¶ç›˜
         def body_range(k):
             return min(k["open"], k["close"]), max(k["open"], k["close"])
 
