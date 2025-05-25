@@ -25,7 +25,12 @@ class DataFeed:
     def __init__(self):
         self.ctx = QuoteContext(Config.from_env())
         self.db_manager = DatabaseManager()
-        self.quote_queue = {symbol: deque(maxlen=1000) for symbol in symbols}
+        self.quote_queue = {symbol: deque(maxlen=1000) for symbol in symbols}       
+        self._kline_callback = None
+
+    def set_kline_callback(self, callback):
+        """设置闭合1分钟K线数据回调（来自数据库或内部生成）"""
+        self._kline_callback = callback
 
     def on_quote(self, symbol: str, quote: PushQuote):
         """行情推送回调"""
@@ -38,6 +43,23 @@ class DataFeed:
             "turnover": float(quote.current_turnover or 0.0)
         }
         
+        current_minute = timestamp[:16]
+        # 检查 quote_queue 是否有上一个 quote
+        q = self.quote_queue[symbol]
+        if q:
+            last_minute = q[-1]["timestamp"][:16]
+            if last_minute != current_minute:
+                # 旧分钟闭合，生成闭合蜡烛
+                closed_candles = self.db_manager.data_cache.get_cached_data(
+                    symbol,
+                    start_time=last_minute + ":00",
+                    end_time=last_minute + ":59"
+                )
+                if closed_candles and self._kline_callback:
+                    self._kline_callback(symbol, closed_candles[-1])
+                else:
+                    print(f"[{symbol}] No closed kline found for {last_minute}")
+
         # 更新缓存，replace=True 表示更新未闭合的蜡烛数据
         self.db_manager.data_cache.update_cache(symbol, quote_data)
         

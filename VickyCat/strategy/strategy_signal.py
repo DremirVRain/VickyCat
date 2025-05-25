@@ -10,6 +10,9 @@ class SignalType(Enum):
     TREND_UP = "trend_up"    # 趋势向上（趋势确认）
     TREND_DOWN = "trend_down" # 趋势向下（趋势确认）
     WARNING = "warning"      # 预警信号，可能反转或形态待确认
+    FILTER = "filter"      # 过滤信号，仅用于辅助其他信号判断
+    INDICATOR = "indicator"  # 指标信号，基于技术指标的信号
+    STRUCTURE = "structure"  # 结构信号，基于价格结构的信号
 
 
 class Signal:
@@ -20,7 +23,8 @@ class Signal:
         signal_type: SignalType,
         strength: float = 1.0,
         strategy_name: Optional[str] = None,
-        metadata: Optional[dict] = None
+        metadata: Optional[dict] = None,
+        expected_action: Optional[str] = None
     ):
         self.symbol = symbol
         self.timestamp = timestamp
@@ -28,6 +32,7 @@ class Signal:
         self.strength = strength
         self.strategy_name = strategy_name
         self.metadata = metadata or {}
+        self.expected_action = expected_action or {}
 
     def __repr__(self):
         return f"<Signal {self.signal_type.value.upper()} | {self.symbol} | {self.timestamp} | strength={self.strength:.2f} | from={self.strategy_name}>"

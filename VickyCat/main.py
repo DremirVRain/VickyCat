@@ -1,10 +1,15 @@
 ﻿import asyncio
 from data_feed import DataFeed
-from strategy import process_strategy
+from strategy_manager import StrategyManager
 from config import symbols
 
 async def main():
     data_feed = DataFeed()
+    strategy_manager = StrategyManager(data_feed.db_manager)
+    
+    # 引入策略处理：绑定策略管理器的接口
+    data_feed.set_kline_callback(strategy_manager.on_kline)
+
     await data_feed.run()
 
 if __name__ == "__main__":
