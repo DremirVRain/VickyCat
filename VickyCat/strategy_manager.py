@@ -1,5 +1,6 @@
 ﻿from typing import Callable, Dict, List
-from strategy.base_strategy import BaseStrategy, Signal
+from strategy.base_strategy import BaseStrategy
+from strategy.strategy_signal import Signal
 from datetime import datetime
 from database import DatabaseManager
 

@@ -1,8 +1,8 @@
 ﻿# strategies/base_strategy.py
 from abc import ABC, abstractmethod
-from strategy_signal import Signal, SignalType
 from typing import Optional
 from datetime import datetime
+from strategy.strategy_signal import Signal, SignalType
 
 
 class BaseStrategy(ABC):

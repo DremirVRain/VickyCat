@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>4ca0cf96-71bc-4b0d-b673-5d522b7de021</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>main.py</StartupFile>
+    <StartupFile>backtester.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>
@@ -26,6 +26,7 @@
     <Compile Include="config.py" />
     <Compile Include="data_feed.py" />
     <Compile Include="database.py" />
+    <Compile Include="fetch_minute_data.py" />
     <Compile Include="risk_manager.py" />
     <Compile Include="signal_handler.py" />
     <Compile Include="strategy\base_strategy.py" />

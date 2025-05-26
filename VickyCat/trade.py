@@ -1,11 +1,11 @@
 ﻿import datetime
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
-from typing import List, Optional, Callable, Dict
+from typing import List, Optional, Callable, Dict, Literal
 import traceback
 from config import ORDER_FEE
 from longport.openapi import (
-    TradeContext, Config, OrderType, OrderSide, TimeInForceType, 
+    QuoteContext, TradeContext, Config, OrderType, OrderSide, TimeInForceType, 
     OrderStatus, Market, TopicType, PushOrderChanged, Period, AdjustType, TradeSession
 )
 
@@ -13,6 +13,7 @@ class Trade:
     def __init__(self):
         self.config = Config.from_env()
         self.ctx = TradeContext(self.config)
+        self.quote_ctx = QuoteContext(self.config)
         self.order_callback: Optional[Callable[[PushOrderChanged], None]] = None
         self.total_fees = Decimal("0.0")
         
@@ -35,9 +36,9 @@ class Trade:
 
     #region K线数据
 
-    def get_candlesticks(self, symbol: str, period: Period, count: int = 100,
+    def get_candlesticks(self, symbol: str, period: Period = Period.Min_1, count: int = 100,
                          adjust_type: AdjustType = AdjustType.NoAdjust, 
-                         trade_session: Optional[TradeSession] = TradeSession.All) -> Dict:
+                         trade_session: Optional[TradeSession] = TradeSession.Normal) -> Dict:
         """
         获取指定标的的 K 线数据。
 
@@ -46,19 +47,72 @@ class Trade:
             period (Period): K 线周期，例如 Period.Day
             count (int): 数据数量，最大 1000
             adjust_type (AdjustType): 复权类型，默认为 NoAdjust
-            trade_session (Optional[TradeSessions]): 交易时段，默认为 All
+            trade_session (Optional[TradeSessions]): 交易时段，默认为 Normal
 
         Returns:
             dict: 包含 K 线数据的响应
         """
         try:
-            return self.ctx.candlesticks(
+            return self.quote_ctx.candlesticks(
                 symbol=symbol,
                 period=period,
                 count=count,
-                adjust_type=adjust_type,
-                trade_session=trade_session
+                adjust_type=adjust_type
             )
+        except Exception as e:
+            return self.handle_exception(e)
+
+    def get_history_candlesticks(
+        self,
+        symbol: str,
+        period: Period = Period.Min_1,
+        adjust_type: AdjustType = AdjustType.NoAdjust,
+        query_type: Literal["date", "offset"] = "date",
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        offset_count: int = 10,
+        offset_direction: Literal["before", "after"] = "before",
+        offset_date: Optional[datetime] = None,
+        trade_session: Optional[int] = None
+    ) -> dict:
+        """
+        获取标的历史 K 线数据（支持日期区间查询和偏移查询）
+
+        Args:
+            symbol (str): 标的代码（如 TSLA.US）
+            period (Period): K线周期
+            adjust_type (AdjustType): 复权方式
+            query_type (str): 查询方式，"date" 或 "offset"
+            start_date (date, optional): 开始日期（仅适用于日期查询）
+            end_date (date, optional): 结束日期（仅适用于日期查询）
+            offset_count (int): 查询数量（仅适用于偏移查询）
+            offset_direction (str): 查询方向，"before" 或 "after"
+            offset_date (datetime, optional): 查询基准日期
+            trade_session (int, optional): 交易时段类型（默认全部）
+
+        Returns:
+            dict: 历史 K 线数据
+        """
+        try:
+            if query_type == "date":
+                return self.quote_ctx.history_candlesticks_by_date(
+                    symbol=symbol,
+                    period=period,
+                    adjust_type=adjust_type,
+                    start_date=start_date,
+                    end_date=end_date
+                )
+            # elif query_type == "offset":
+            #     return self.quote_ctx.history_candlesticks_by_offset(
+            #         symbol=symbol,
+            #         period=period,
+            #         adjust_type=adjust_type,
+            #         forward=(offset_direction == "after"),
+            #         count=offset_count,
+            #         timestamp=offset_date
+            #     )
+            else:
+                raise ValueError(f"Unsupported query_type: {query_type}")
         except Exception as e:
             return self.handle_exception(e)
 
@@ -85,14 +139,14 @@ class Trade:
         except Exception as e:
             return self.handle_exception(e)
 
-    def get_history_executions(self, symbol: Optional[str] = None, start_at: Optional[datetime.datetime] = None, end_at: Optional[datetime.datetime] = None) -> dict:
+    def get_history_executions(self, symbol: Optional[str] = None, start_at: Optional[datetime] = None, end_at: Optional[datetime] = None) -> dict:
         """
         获取历史的成交记录。
 
         Args:
             symbol (Optional[str]): 标的代码（例如 'TSLA.US'），默认返回所有标的
-            start_at (Optional[datetime.datetime]): 起始时间，默认为 None
-            end_at (Optional[datetime.datetime]): 结束时间，默认为 None
+            start_at (Optional[datetime]): 起始时间，默认为 None
+            end_at (Optional[datetime]): 结束时间，默认为 None
 
         Returns:
             dict: 历史成交记录数据
@@ -156,7 +210,7 @@ class Trade:
         except Exception as e:
             return self.handle_exception(e)
 
-    def get_history_orders(self, symbol: Optional[str] = None, status: Optional[List[OrderStatus]] = None, side: Optional[OrderSide] = None, market: Optional[Market] = None, start_at: Optional[datetime.datetime] = None, end_at: Optional[datetime.datetime] = None) -> dict:
+    def get_history_orders(self, symbol: Optional[str] = None, status: Optional[List[OrderStatus]] = None, side: Optional[OrderSide] = None, market: Optional[Market] = None, start_at: Optional[datetime] = None, end_at: Optional[datetime] = None) -> dict:
         """
         获取历史订单。
 
@@ -165,8 +219,8 @@ class Trade:
             status (Optional[List[OrderStatus]]): 订单状态（如未成交、已成交等），默认返回所有状态
             side (Optional[OrderSide]): 买卖方向（如买入或卖出），默认返回所有方向
             market (Optional[Market]): 市场类型，默认返回所有市场
-            start_at (Optional[datetime.datetime]): 起始时间，默认为 None
-            end_at (Optional[datetime.datetime]): 结束时间，默认为 None
+            start_at (Optional[datetime]): 起始时间，默认为 None
+            end_at (Optional[datetime]): 结束时间，默认为 None
 
         Returns:
             dict: 历史订单数据
@@ -363,9 +417,7 @@ class Trade:
             for session in market_sessions:
                 if session["beg_time"] <= current_time <= session["end_time"]:
                     return True
-
             return False
-
         except Exception as e:
             self.handle_exception(e)
             return False
@@ -391,8 +443,8 @@ class Trade:
 
     def get_cash_flow(
         self, 
-        start_at: datetime.datetime, 
-        end_at: datetime.datetime, 
+        start_at: datetime, 
+        end_at: datetime, 
         business_type: Optional[int] = None,  # 这里需要确认是否一定是整数，是否有具体的业务类型映射表？
         symbol: Optional[str] = None, 
         page: Optional[int] = 1, 
@@ -402,8 +454,8 @@ class Trade:
         获取账户现金流。
 
         Args:
-            start_at (datetime.datetime): 起始时间
-            end_at (datetime.datetime): 结束时间
+            start_at (datetime): 起始时间
+            end_at (datetime): 结束时间
             business_type (Optional[int]): 业务类型，默认为 None
             symbol (Optional[str]): 标的代码，默认为 None
             page (Optional[int]): 当前页码，默认为 1
