@@ -6,12 +6,13 @@ from config import TRADE_SESSION
 from utils.archive_manager import ArchiveManager
 from utils.data_cache import DataCache
 from utils.trading_time_manager import TradingTimeManager
+from collections import defaultdict
 
 DB_PATH = "market_data_async.db"
 
 class DatabaseManager:
-    def __init__(self):
-        self.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    def __init__(self, db_path: str = DB_PATH):
+        self.conn = sqlite3.connect(db_path, check_same_thread=False)
         self.conn.execute('PRAGMA journal_mode=WAL;')
         self.create_tables()
 
@@ -145,14 +146,13 @@ class DatabaseManager:
         """归档并删除旧数据，通过 ArchiveManager 统一管理"""
         self.archive_manager.archive_old_data()    
         
-    def get_kline_1s(self, start_time: str, end_time: str, symbol: str) -> List[Dict[str, Any]]:
+    def get_kline_1s(self, symbol: str, start_time: str, end_time: str) -> List[Dict[str, Any]]:
         """获取 1 秒 K 线数据，优先从缓存获取。"""
-        cached_data = self.data_cache.get_cached_data(symbol, "1s", start_time, end_time)
+        cached_data = self.data_cache.get_cached_data(symbol, start_time, end_time)
 
         if cached_data:
             return cached_data
 
-        # 若缓存中无数据，则从数据库查询
         cursor = self.conn.cursor()
         cursor.execute('''
             SELECT timestamp, price, volume, turnover
@@ -161,14 +161,50 @@ class DatabaseManager:
             ORDER BY timestamp ASC
         ''', (start_time, end_time, symbol))
 
-        return [
-            {"timestamp": row[0], "price": row[1], "volume": row[2], "turnover": row[3]}
-            for row in cursor.fetchall()
-        ]
+        # 临时按秒分组数据，key是秒时间字符串，value是list of ticks
+        ticks_per_second = defaultdict(list)
+
+        for row in cursor.fetchall():
+            ts_str, price, volume, turnover = row
+            # 确保 timestamp 格式是 "%Y-%m-%d %H:%M:%S" 或类似的
+            # 只取到秒，去除毫秒
+            if isinstance(ts_str, str):
+                dt = datetime.strptime(ts_str, "%Y-%m-%d %H:%M:%S")
+            else:
+                dt = ts_str
+            second_key = dt.strftime("%Y-%m-%d %H:%M:%S")
+            ticks_per_second[second_key].append({
+                "price": price,
+                "volume": volume,
+                "turnover": turnover
+            })
+
+        candles = []
+        for second_key in sorted(ticks_per_second.keys()):
+            ticks = ticks_per_second[second_key]
+            open_price = ticks[0]["price"]
+            close_price = ticks[-1]["price"]
+            high_price = max(t["price"] for t in ticks)
+            low_price = min(t["price"] for t in ticks)
+            total_volume = sum(t["volume"] for t in ticks)
+            total_turnover = sum(t["turnover"] for t in ticks)
+
+            candle = {
+                "timestamp": second_key,
+                "open": open_price,
+                "high": high_price,
+                "low": low_price,
+                "close": close_price,
+                "volume": total_volume,
+                "turnover": total_turnover
+            }
+            candles.append(candle)
+
+        return candles
 
     def get_kline_5s(self, symbol: str, start_time: str, end_time: str) -> List[Dict[str, Any]]:
         """基于 1s 数据生成 5s 数据"""
-        data_1s = self.data_cache.get_cached_data(symbol, start_time, end_time)
+        data_1s = self.get_kline_1s(symbol, start_time, end_time)
 
         if not data_1s:
             return []
@@ -240,3 +276,13 @@ class DatabaseManager:
         cursor.execute(sql, params)
         rows = cursor.fetchall()
         return [dict(zip([column[0] for column in cursor.description], row)) for row in rows]
+
+    def get_kline_by_period(self, period: str, symbol: str, start_time: str, end_time: str) -> List[Dict[str, Any]]:
+        if period == "1s":
+            return self.get_kline_1s(symbol, start_time, end_time)
+        elif period == "5s":
+            return self.get_kline_5s(symbol, start_time, end_time)
+        elif period == "1m":
+            return self.get_kline_1m(symbol, start_time, end_time)
+        else:
+            raise ValueError(f"Unsupported period: {period}")

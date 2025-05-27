@@ -1,27 +1,7 @@
-from base_strategy import BaseStrategy
-from strategy_signal import Signal, SignalType
-from typing import Optional, List
+from strategy.base_strategy import BaseStrategy
+from strategy.strategy_signal import Signal, SignalType
+from typing import Optional, List, Dict
 from datetime import datetime
-
-class CandlePatternStrategy(BaseStrategy):
-    signal_type: Optional[SignalType] = None
-
-    def __init__(self, symbol: str):
-        super().__init__(symbol)
-
-    def required_candles(self) -> int:
-        raise NotImplementedError
-
-    def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
-        raise NotImplementedError
-
-    def generate_signal(self, *klines: dict) -> Optional[Signal]:
-        if len(klines) < self.required_candles():
-            return None
-        signal_type = self.is_pattern(klines[-self.required_candles():])
-        if signal_type:
-            return Signal(self.symbol, klines[-1]["timestamp"], signal_type, strategy_name=self.__class__.__name__)
-        return None
 
 # ========================
 # 工具函数（建议移入 utils.py）
@@ -113,18 +93,52 @@ def is_engulfing(current_k, prev_k, bullish=True):
             current_k["open"] > prev_k["close"] and
             current_k["close"] < prev_k["open"]
         )
+    
+
+class CandlePatternStrategy(BaseStrategy):
+    signal_type: Optional[SignalType] = None
+
+    def __init__(self, symbol: str):
+        super().__init__(symbol)
+        self.cache = {}  # 如果子类有需要，也可利用
+
+    def required_candles(self) -> int:
+        raise NotImplementedError
+
+    def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
+        raise NotImplementedError
+
+    def generate_signal(self, *klines: dict) -> Optional[Signal]:
+        required = self.required_candles()
+        if len(klines) < required:
+            return None
+        selected_klines = klines[-required:]
+        signal_type = self.is_pattern(selected_klines)
+        if signal_type:
+            return self.build_signal(
+                kline=selected_klines[-1],
+                signal_type=signal_type,
+                metadata={"pattern": self.__class__.__name__}
+            )
+        return None
+
+    def get_params(self) -> dict:
+        return {}
+
+    def set_params(self, **params):
+        pass
 
 # ========================
-# 单k线反转形态
+# 单K线反转形态策略
 # ========================
 
 class HammerPattern(CandlePatternStrategy):
     signal_type = SignalType.BUY
 
-    def __init__(self, symbol: str, min_body_ratio=0.2, shadow_to_body_ratio=2.0, max_upper_shadow_ratio=0.3):
+    def __init__(self, symbol: str, min_body_ratio=0.2, min_shadow_ratio=2.0, max_upper_shadow_ratio=0.3):
         super().__init__(symbol)
         self.min_body_ratio = min_body_ratio
-        self.shadow_to_body_ratio = shadow_to_body_ratio
+        self.min_shadow_ratio = min_shadow_ratio
         self.max_upper_shadow_ratio = max_upper_shadow_ratio
 
     def required_candles(self) -> int:
@@ -132,17 +146,16 @@ class HammerPattern(CandlePatternStrategy):
 
     def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
         k = klines[-1]
-        b = body(k)
-        r = candle_range(k)
+        b, r = body(k), candle_range(k)
         if r == 0:
             return None
-        # 下影线长，实体至少满足最小比例，上影线较短
         if (
             b / r >= self.min_body_ratio and
-            lower_shadow(k) > self.shadow_to_body_ratio * b and
+            lower_shadow(k) > self.min_shadow_ratio * b and
             upper_shadow(k) < self.max_upper_shadow_ratio * r and
             is_bullish(k)
         ):
+            print(f"锤子线匹配: {k}")  # 直接打印k线信息
             return self.signal_type
         return None
 
@@ -150,10 +163,10 @@ class HammerPattern(CandlePatternStrategy):
 class HangingManPattern(CandlePatternStrategy):
     signal_type = SignalType.SELL
 
-    def __init__(self, symbol: str, min_body_ratio=0.2, shadow_to_body_ratio=2.0, max_upper_shadow_ratio=0.3):
+    def __init__(self, symbol: str, min_body_ratio=0.2, min_shadow_ratio=2.0, max_upper_shadow_ratio=0.3):
         super().__init__(symbol)
         self.min_body_ratio = min_body_ratio
-        self.shadow_to_body_ratio = shadow_to_body_ratio
+        self.min_shadow_ratio = min_shadow_ratio
         self.max_upper_shadow_ratio = max_upper_shadow_ratio
 
     def required_candles(self) -> int:
@@ -161,14 +174,12 @@ class HangingManPattern(CandlePatternStrategy):
 
     def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
         k = klines[-1]
-        b = body(k)
-        r = candle_range(k)
+        b, r = body(k), candle_range(k)
         if r == 0:
             return None
-        # 类似锤子线，但实体为阴线，且下影线长，上影线短
         if (
             b / r >= self.min_body_ratio and
-            lower_shadow(k) > self.shadow_to_body_ratio * b and
+            lower_shadow(k) > self.min_shadow_ratio * b and
             upper_shadow(k) < self.max_upper_shadow_ratio * r and
             is_bearish(k)
         ):
@@ -179,10 +190,10 @@ class HangingManPattern(CandlePatternStrategy):
 class InvertedHammerPattern(CandlePatternStrategy):
     signal_type = SignalType.BUY
 
-    def __init__(self, symbol: str, min_body_ratio=0.2, shadow_to_body_ratio=2.0, max_lower_shadow_ratio=0.3):
+    def __init__(self, symbol: str, min_body_ratio=0.2, min_shadow_ratio=2.0, max_lower_shadow_ratio=0.3):
         super().__init__(symbol)
         self.min_body_ratio = min_body_ratio
-        self.shadow_to_body_ratio = shadow_to_body_ratio
+        self.min_shadow_ratio = min_shadow_ratio
         self.max_lower_shadow_ratio = max_lower_shadow_ratio
 
     def required_candles(self) -> int:
@@ -190,14 +201,12 @@ class InvertedHammerPattern(CandlePatternStrategy):
 
     def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
         k = klines[-1]
-        b = body(k)
-        r = candle_range(k)
+        b, r = body(k), candle_range(k)
         if r == 0:
             return None
-        # 长上影线，实体占比最小，且下影线较短，实体为阳线
         if (
             b / r >= self.min_body_ratio and
-            upper_shadow(k) > self.shadow_to_body_ratio * b and
+            upper_shadow(k) > self.min_shadow_ratio * b and
             lower_shadow(k) < self.max_lower_shadow_ratio * r and
             is_bullish(k)
         ):
@@ -208,10 +217,10 @@ class InvertedHammerPattern(CandlePatternStrategy):
 class ShootingStarPattern(CandlePatternStrategy):
     signal_type = SignalType.SELL
 
-    def __init__(self, symbol: str, min_body_ratio=0.2, shadow_to_body_ratio=2.0, max_lower_shadow_ratio=0.3):
+    def __init__(self, symbol: str, min_body_ratio=0.2, min_shadow_ratio=2.0, max_lower_shadow_ratio=0.3):
         super().__init__(symbol)
         self.min_body_ratio = min_body_ratio
-        self.shadow_to_body_ratio = shadow_to_body_ratio
+        self.min_shadow_ratio = min_shadow_ratio
         self.max_lower_shadow_ratio = max_lower_shadow_ratio
 
     def required_candles(self) -> int:
@@ -219,14 +228,12 @@ class ShootingStarPattern(CandlePatternStrategy):
 
     def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
         k = klines[-1]
-        b = body(k)
-        r = candle_range(k)
+        b, r = body(k), candle_range(k)
         if r == 0:
             return None
-        # 类似倒锤子线，但为阴线，长上影线，短下影线
         if (
             b / r >= self.min_body_ratio and
-            upper_shadow(k) > self.shadow_to_body_ratio * b and
+            upper_shadow(k) > self.min_shadow_ratio * b and
             lower_shadow(k) < self.max_lower_shadow_ratio * r and
             is_bearish(k)
         ):

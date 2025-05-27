@@ -1,56 +1,52 @@
-﻿import asyncio
-import logging
-from datetime import datetime
-from typing import Optional, List
+﻿# backtester.py
+
+from strategy_manager import StrategyManager
+from strategy.strategy_signal import Signal
+from strategy.candle_pattern_strategy import HammerPattern  # 示例策略
 from database import DatabaseManager
-from trade import Trade
-from data_feed import DataFeed
-from config import symbols
+from datetime import datetime
+import time
+from utils.time_util import convert_to_eastern
 
 class Backtester:
-    def __init__(self, symbol_list: Optional[List[str]] = None, start_time: Optional[str] = None, end_time: Optional[str] = None, debug_mode: bool = False):
-        self.symbol_list = symbol_list if symbol_list else symbols
-        self.start_time = start_time  # 格式："2024-01-01 09:30:00"
-        self.end_time = end_time      # 格式："2024-01-01 12:00:00"
-        self.debug_mode = debug_mode
+    def __init__(self, db_path: str, symbols: list):
+        self.db_manager = DatabaseManager()
+        self.symbols = symbols
+        self.strategy_manager = StrategyManager(self.db_manager)
+        self.results = []  # 存储所有 signal，可后续分析或输出
 
-        self.db = DatabaseManager()
-        self.trade = Trade()
-        self.data_feed = DataFeed()  # 如果你希望策略用 on_quote，可从此类中引入
+    def setup_strategies(self):
+        # 这里注册你要测试的策略，可以灵活替换和扩展
+        for symbol in self.symbols:
+            self.strategy_manager.register_strategy(symbol, HammerPattern(symbol))
 
-        # 模拟时间，在 debug 模式下作为 datetime.now() 替代
-        self._mock_time = None
+        # 设置 signal 回调
+        self.strategy_manager.set_signal_callback(self.on_signal)
 
-    def get_now(self) -> datetime:
-        """替代 datetime.now() 的统一接口"""
-        return self._mock_time if self.debug_mode else datetime.now()
+    def on_signal(self, symbol: str, signal: Signal):
+        print(f"[{convert_to_eastern(signal.timestamp)}] {symbol} 触发信号: {signal.signal_type}")
+        self.results.append((symbol, signal))
 
-    async def run(self):
-        logging.info(f"启动回测，标的: {self.symbol_list}")
-        for symbol in self.symbol_list:
-            logging.info(f"读取数据: {symbol}")
-            data = self.db.get_quotes(symbol, self.start_time, self.end_time)
-            logging.info(f"数据条数: {len(data)}")
+    def run(self, start_date: str = None, end_date: str = None):
+        self.setup_strategies()
 
-            for idx, quote in enumerate(data):
-                # 设置模拟当前时间
-                if self.debug_mode:
-                    self._mock_time = datetime.strptime(quote['timestamp'], "%Y-%m-%d %H:%M:%S")
+        for symbol in self.symbols:
+            print(f"🚀 开始回测 {symbol} 数据")
+            klines = self.db_manager.get_kline_1m(symbol, start_date, end_date)
+            print(f"共加载 {len(klines)} 根分钟K线")
 
-                # 模拟推送给 on_quote（策略接入点）
-                self.data_feed.on_quote(symbol, quote)
+            for kline in klines:
+                self.strategy_manager.on_kline(symbol, kline)
+                time.sleep(0.001)  # 模拟推送节奏，可关闭以提速
 
-                # 你可以在这里判断订单状态、模拟成交等
-                if idx + 1 < len(data):
-                    next_quote = data[idx + 1]
-                    # 可在此处模拟订单撮合等行为
+        print(f"✅ 回测完成，共触发 {len(self.results)} 个信号")
 
-                await asyncio.sleep(0)  # 释放事件循环
 
-        logging.info("回测结束")
-
-# 如果直接运行
 if __name__ == "__main__":
-    bt = Backtester(debug_mode=True)
-    asyncio.run(bt.run())
+    symbols = ["TSLA.US"]
+    db_path = "minute_data.db"
+    start_date = "2025-05-19 21:30:00"
+    end_date = "2025-05-20 05:30:00"
 
+    backtester = Backtester(db_path, symbols)
+    backtester.run(start_date, end_date)
