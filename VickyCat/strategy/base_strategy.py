@@ -29,6 +29,7 @@ class BaseStrategy(ABC):
             symbol=self.symbol,
             timestamp=ts,
             signal_type=signal_type,
+            price=kline["close"],
             strength=strength,
             strategy_name=self.__class__.__name__,
             metadata=metadata or {}

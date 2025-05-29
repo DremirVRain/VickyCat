@@ -27,6 +27,7 @@ class DataFeed:
         self.db_manager = DatabaseManager()
         self.quote_queue = {symbol: deque(maxlen=1000) for symbol in symbols}       
         self._kline_callback = None
+        self._last_processed_minute = None
 
     def set_kline_callback(self, callback):
         """设置闭合1分钟K线数据回调（来自数据库或内部生成）"""
@@ -44,12 +45,10 @@ class DataFeed:
         }
         
         current_minute = timestamp[:16]
-        # 检查 quote_queue 是否有上一个 quote
         q = self.quote_queue[symbol]
         if q:
             last_minute = q[-1]["timestamp"][:16]
             if last_minute != current_minute:
-                # 旧分钟闭合，生成闭合蜡烛
                 closed_candles = self.db_manager.data_cache.get_cached_data(
                     symbol,
                     start_time=last_minute + ":00",
@@ -60,10 +59,7 @@ class DataFeed:
                 else:
                     print(f"[{symbol}] No closed kline found for {last_minute}")
 
-        # 更新缓存，replace=True 表示更新未闭合的蜡烛数据
         self.db_manager.data_cache.update_cache(symbol, quote_data)
-        
-        # 插入数据库并更新缓存
         self.quote_queue[symbol].append(quote_data)
 
     @handle_exception
@@ -80,7 +76,6 @@ class DataFeed:
             tasks = [self.save_quote_data(symbol) for symbol in symbols]
             if tasks:
                 await asyncio.gather(*tasks)
-
             await asyncio.sleep(0.1)
 
     @handle_exception
@@ -99,8 +94,44 @@ class DataFeed:
             if now.hour == 16 and now.minute == 10:
                 logging.info("开始数据归档...")
                 self.db_manager.archive_old_data()
-
             await asyncio.sleep(60)
+
+    @handle_exception
+    async def minute_watcher(self):
+        """每分钟检查是否有跳空未闭合蜡烛，补发空蜡烛或触发闭合"""
+        while True:
+            now = datetime.now()
+            current_minute = now.replace(second=0, microsecond=0)
+
+            if self._last_processed_minute and current_minute > self._last_processed_minute:
+                for symbol in symbols:
+                    last_min_str = self._last_processed_minute.strftime("%Y-%m-%d %H:%M")
+                    cached_data = self.db_manager.data_cache.get_cached_data(
+                        symbol,
+                        start_time=last_min_str + ":00",
+                        end_time=last_min_str + ":59"
+                    )
+
+                    if cached_data:
+                        if self._kline_callback:
+                            self._kline_callback(symbol, cached_data[-1])
+                    else:
+                        last_price = self.db_manager.get_last_price(symbol) or 0.0
+                        empty_candle = {
+                            "timestamp": self._last_processed_minute.strftime("%Y-%m-%d %H:%M:%S"),
+                            "symbol": symbol,
+                            "price": last_price,
+                            "volume": 0,
+                            "turnover": 0.0
+                        }
+                        self.db_manager.data_cache.update_cache(symbol, empty_candle)
+                        await self.db_manager.save_quotes_batch([empty_candle])
+                        if self._kline_callback:
+                            self._kline_callback(symbol, empty_candle)
+                        logging.warning(f"[{symbol}] 补发空蜡烛 for {last_min_str}")
+
+            self._last_processed_minute = current_minute
+            await asyncio.sleep(60 - now.second)
 
     async def run(self):
         """启动 DataFeed 模块"""
@@ -108,4 +139,5 @@ class DataFeed:
             self.start_subscription(),
             self.data_saver(),
             self.schedule_archive_task(),
+            self.minute_watcher(),
         )

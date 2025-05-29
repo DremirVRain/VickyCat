@@ -20,7 +20,7 @@ class StrategyManager:
         """设置 signal 生成后的回调函数，常用于记录或下单"""
         self.signal_callback = callback
 
-    def on_kline(self, symbol: str, kline: Dict):
+    def on_kline(self, symbol: str, kline: Dict, index=None):
         """
         主入口：接收一根 1 分钟级别的 K 线，触发所有该 symbol 下已注册策略。
         会自动拉取该分钟内的 1 秒数据，供策略分析。
@@ -32,7 +32,7 @@ class StrategyManager:
         for strategy in self.strategies.get(symbol, []):
             signal = strategy.generate_signal(kline)
             if signal and self.signal_callback:
-                self.signal_callback(symbol, signal)
+                self.signal_callback(symbol, signal, index)
 
     def _get_minute_start(self, timestamp: str) -> str:
         """将 timestamp 转为所在分钟的起始时间字符串"""

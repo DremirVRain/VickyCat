@@ -21,6 +21,7 @@ class Signal:
         symbol: str,
         timestamp: datetime,
         signal_type: SignalType,
+        price: float,
         strength: float = 1.0,
         strategy_name: Optional[str] = None,
         metadata: Optional[dict] = None,
@@ -29,6 +30,7 @@ class Signal:
         self.symbol = symbol
         self.timestamp = timestamp
         self.signal_type = signal_type
+        self.price = price
         self.strength = strength
         self.strategy_name = strategy_name
         self.metadata = metadata or {}

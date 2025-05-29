@@ -146,18 +146,29 @@ class HammerPattern(CandlePatternStrategy):
 
     def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
         k = klines[-1]
-        b, r = body(k), candle_range(k)
+        b = body(k)
+        r = candle_range(k)
+        ls = lower_shadow(k)
+        us = upper_shadow(k)
+
         if r == 0:
             return None
+
         if (
             b / r >= self.min_body_ratio and
-            lower_shadow(k) > self.min_shadow_ratio * b and
-            upper_shadow(k) < self.max_upper_shadow_ratio * r and
+            ls > self.min_shadow_ratio * b and
+            us < self.max_upper_shadow_ratio * r and
             is_bullish(k)
         ):
-            print(f"锤子线匹配: {k}")  # 直接打印k线信息
+            print(f"✅ 锤子线匹配: {k}")
+            print(f"[{k['timestamp']}] 检测 HammerPattern")
+            print(f"  body = {b:.4f}, range = {r:.4f}, body/range = {b/r:.4f}")
+            print(f"  lower_shadow = {ls:.4f} vs {self.min_shadow_ratio} * body = {self.min_shadow_ratio * b:.4f}")
+            print(f"  upper_shadow = {us:.4f} vs {self.max_upper_shadow_ratio} * range = {self.max_upper_shadow_ratio * r:.4f}")
+            print(f"  is_bullish = {is_bullish(k)}")
             return self.signal_type
         return None
+
 
 
 class HangingManPattern(CandlePatternStrategy):
@@ -174,17 +185,29 @@ class HangingManPattern(CandlePatternStrategy):
 
     def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
         k = klines[-1]
-        b, r = body(k), candle_range(k)
+        b = body(k)
+        r = candle_range(k)
+        ls = lower_shadow(k)
+        us = upper_shadow(k)
+
         if r == 0:
             return None
+
         if (
             b / r >= self.min_body_ratio and
-            lower_shadow(k) > self.min_shadow_ratio * b and
-            upper_shadow(k) < self.max_upper_shadow_ratio * r and
+            ls > self.min_shadow_ratio * b and
+            us < self.max_upper_shadow_ratio * r and
             is_bearish(k)
         ):
+            print(f"✅ 吊人线匹配: {k}")
+            print(f"[{k['timestamp']}] 检测 HangingManPattern")
+            print(f"  body = {b:.4f}, range = {r:.4f}, body/range = {b/r:.4f}")
+            print(f"  lower_shadow = {ls:.4f} vs {self.min_shadow_ratio} * body = {self.min_shadow_ratio * b:.4f}")
+            print(f"  upper_shadow = {us:.4f} vs {self.max_upper_shadow_ratio} * range = {self.max_upper_shadow_ratio * r:.4f}")
+            print(f"  is_bearish = {is_bearish(k)}")
             return self.signal_type
         return None
+
 
 
 class InvertedHammerPattern(CandlePatternStrategy):
@@ -201,17 +224,29 @@ class InvertedHammerPattern(CandlePatternStrategy):
 
     def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
         k = klines[-1]
-        b, r = body(k), candle_range(k)
+        b = body(k)
+        r = candle_range(k)
+        ls = lower_shadow(k)
+        us = upper_shadow(k)
+
         if r == 0:
             return None
+
         if (
             b / r >= self.min_body_ratio and
-            upper_shadow(k) > self.min_shadow_ratio * b and
-            lower_shadow(k) < self.max_lower_shadow_ratio * r and
+            us > self.min_shadow_ratio * b and
+            ls < self.max_lower_shadow_ratio * r and
             is_bullish(k)
         ):
+            print(f"✅ 倒锤子线匹配: {k}")
+            print(f"[{k['timestamp']}] 检测 InvertedHammerPattern")
+            print(f"  body = {b:.4f}, range = {r:.4f}, body/range = {b/r:.4f}")
+            print(f"  upper_shadow = {us:.4f} vs {self.min_shadow_ratio} * body = {self.min_shadow_ratio * b:.4f}")
+            print(f"  lower_shadow = {ls:.4f} vs {self.max_lower_shadow_ratio} * range = {self.max_lower_shadow_ratio * r:.4f}")
+            print(f"  is_bullish = {is_bullish(k)}")
             return self.signal_type
         return None
+
 
 
 class ShootingStarPattern(CandlePatternStrategy):
@@ -228,17 +263,29 @@ class ShootingStarPattern(CandlePatternStrategy):
 
     def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
         k = klines[-1]
-        b, r = body(k), candle_range(k)
+        b = body(k)
+        r = candle_range(k)
+        ls = lower_shadow(k)
+        us = upper_shadow(k)
+
         if r == 0:
             return None
+
         if (
             b / r >= self.min_body_ratio and
-            upper_shadow(k) > self.min_shadow_ratio * b and
-            lower_shadow(k) < self.max_lower_shadow_ratio * r and
+            us > self.min_shadow_ratio * b and
+            ls < self.max_lower_shadow_ratio * r and
             is_bearish(k)
         ):
+            print(f"✅ 流星线匹配: {k}")
+            print(f"[{k['timestamp']}] 检测 ShootingStarPattern")
+            print(f"  body = {b:.4f}, range = {r:.4f}, body/range = {b/r:.4f}")
+            print(f"  upper_shadow = {us:.4f} vs {self.min_shadow_ratio} * body = {self.min_shadow_ratio * b:.4f}")
+            print(f"  lower_shadow = {ls:.4f} vs {self.max_lower_shadow_ratio} * range = {self.max_lower_shadow_ratio * r:.4f}")
+            print(f"  is_bearish = {is_bearish(k)}")
             return self.signal_type
         return None
+
 
 # ========================
 # 双K线反转形态
