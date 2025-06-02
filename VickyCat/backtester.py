@@ -9,6 +9,32 @@ from datetime import datetime, timedelta
 import time
 from utils.time_util import convert_to_eastern
 
+@dataclass
+class BacktestSignalEvent:
+    timestamp: str
+    symbol: str
+    signal: Signal
+    kline_snapshot: List[Dict[str, Any]]
+    future_klines: List[Dict[str, Any]] = field(default_factory=list)
+    max_profit: Optional[float] = None
+    max_drawdown: Optional[float] = None
+    exit_reason: Optional[str] = None
+
+    def analyze_future(self, lookahead: int = 5):
+        entry_price = self.kline_snapshot[-1]["close"]
+        highs = [k["high"] for k in self.future_klines[:lookahead]]
+        lows = [k["low"] for k in self.future_klines[:lookahead]]
+        if not highs or not lows:
+            return
+
+        if self.signal.signal_type == "buy":
+            self.max_profit = max(h - entry_price for h in highs)
+            self.max_drawdown = min(l - entry_price for l in lows)
+        elif self.signal.signal_type == "sell":
+            self.max_profit = max(entry_price - l for l in lows)
+            self.max_drawdown = min(entry_price - h for h in highs)
+
+
 class Backtester:
     def __init__(self, db_path: str, symbols: list):
         self.db_manager = DatabaseManager()

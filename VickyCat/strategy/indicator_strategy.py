@@ -1,4 +1,4 @@
-from base_strategy import BaseStrategy
+ï»¿from base_strategy import BaseStrategy
 from strategy_signal import Signal, SignalType
 from typing import Optional, List
 from datetime import datetime
@@ -64,17 +64,17 @@ def exponential_moving_average(prices: List[float], window: int, prev_ema: Optio
 
 def efficiency_ratio(prices: list[float], period: int = 10) -> float:
     """
-    ¼ÆËã Efficiency Ratio£¨Ğ§ÂÊ±ÈÂÊ£©£¬ºâÁ¿Ç÷ÊÆÇ¿¶È vs ÔëÒô¡£
+    è®¡ç®— Efficiency Ratioï¼ˆæ•ˆç‡æ¯”ç‡ï¼‰ï¼Œè¡¡é‡è¶‹åŠ¿å¼ºåº¦ vs å™ªéŸ³ã€‚
 
-    ²ÎÊı:
-    - prices: float ÊıÖµÁĞ±í£¬°´Ê±¼äÉıĞòÅÅÁĞµÄ¼Û¸ñĞòÁĞ
-    - period: ÓÃÓÚ¼ÆËãµÄÖÜÆÚ³¤¶È£¨Ä¬ÈÏ10£©
+    å‚æ•°:
+    - prices: float æ•°å€¼åˆ—è¡¨ï¼ŒæŒ‰æ—¶é—´å‡åºæ’åˆ—çš„ä»·æ ¼åºåˆ—
+    - period: ç”¨äºè®¡ç®—çš„å‘¨æœŸé•¿åº¦ï¼ˆé»˜è®¤10ï¼‰
 
-    ·µ»Ø:
-    - ER Öµ£¬·¶Î§ 0~1£¬½Ó½ü 1 Ç÷ÊÆÇ¿£¬½Ó½ü 0 ±íÊ¾Õğµ´
+    è¿”å›:
+    - ER å€¼ï¼ŒèŒƒå›´ 0~1ï¼Œæ¥è¿‘ 1 è¶‹åŠ¿å¼ºï¼Œæ¥è¿‘ 0 è¡¨ç¤ºéœ‡è¡
     """
     if len(prices) < period + 1:
-        return 0.0  # Êı¾İ²»×ã
+        return 0.0  # æ•°æ®ä¸è¶³
     
     change = abs(prices[-1] - prices[-period - 1])
     volatility = sum(abs(prices[i] - prices[i - 1]) for i in range(-period, 0))
@@ -83,15 +83,15 @@ def efficiency_ratio(prices: list[float], period: int = 10) -> float:
 
 def calc_rate_of_change(data: List[float], period: int = 1) -> List[Optional[float]]:
     """
-    ¼ÆËãĞòÁĞµÄ±ä»¯ÂÊ (Rate of Change, ROC)£¬
+    è®¡ç®—åºåˆ—çš„å˜åŒ–ç‡ (Rate of Change, ROC)ï¼Œ
     ROC_t = (data_t - data_{t-period}) / data_{t-period}
     
-    ²ÎÊı:
-        data: ÊıÖµĞòÁĞ£¨Èç³É½»Á¿¡¢³É½»½ğ¶î£©
-        period: ¼ÆËã¼ä¸ôÖÜÆÚÊı£¬Ä¬ÈÏÎª1
+    å‚æ•°:
+        data: æ•°å€¼åºåˆ—ï¼ˆå¦‚æˆäº¤é‡ã€æˆäº¤é‡‘é¢ï¼‰
+        period: è®¡ç®—é—´éš”å‘¨æœŸæ•°ï¼Œé»˜è®¤ä¸º1
     
-    ·µ»Ø:
-        ±ä»¯ÂÊÁĞ±í£¬Ç° period ¸öÔªËØÎª None£¨ÒòÎŞÊı¾İ¼ÆËã£©
+    è¿”å›:
+        å˜åŒ–ç‡åˆ—è¡¨ï¼Œå‰ period ä¸ªå…ƒç´ ä¸º Noneï¼ˆå› æ— æ•°æ®è®¡ç®—ï¼‰
     """
     roc = [None] * len(data)
     for i in range(period, len(data)):
@@ -105,15 +105,15 @@ def calc_rate_of_change(data: List[float], period: int = 1) -> List[Optional[flo
 
 def calc_smoothed_rate_of_change(data: List[float], period: int = 1, smooth_window: int = 3) -> List[Optional[float]]:
     """
-    ¼ÆËãÆ½»¬ºóµÄ±ä»¯ÂÊ£¬ÏÈ¼ÆËãROCºó×ö¼òµ¥ÒÆ¶¯Æ½¾ù£¨SMA£©¡£
+    è®¡ç®—å¹³æ»‘åçš„å˜åŒ–ç‡ï¼Œå…ˆè®¡ç®—ROCååšç®€å•ç§»åŠ¨å¹³å‡ï¼ˆSMAï¼‰ã€‚
     
-    ²ÎÊı:
-        data: ÊıÖµĞòÁĞ
-        period: ±ä»¯ÂÊ¼ÆËãÖÜÆÚ
-        smooth_window: SMA Æ½»¬´°¿Ú´óĞ¡
+    å‚æ•°:
+        data: æ•°å€¼åºåˆ—
+        period: å˜åŒ–ç‡è®¡ç®—å‘¨æœŸ
+        smooth_window: SMA å¹³æ»‘çª—å£å¤§å°
     
-    ·µ»Ø:
-        Æ½»¬ºóµÄ±ä»¯ÂÊÁĞ±í
+    è¿”å›:
+        å¹³æ»‘åçš„å˜åŒ–ç‡åˆ—è¡¨
     """
     roc = calc_rate_of_change(data, period)
     smoothed = [None] * len(roc)
@@ -155,7 +155,7 @@ class IndicatorStrategy(BaseStrategy):
         pass
 
 # ========================
-# ¾ùÖµ»Ø¹é
+# å‡å€¼å›å½’
 # ========================
 class BollingerBandStrategy(IndicatorStrategy):
     def __init__(self, symbol: str, window: int = 20, k: float = 2.0):
@@ -198,7 +198,7 @@ class BollingerBandStrategy(IndicatorStrategy):
 
 
 # ========================
-# ¶¯Á¿Àà
+# åŠ¨é‡ç±»
 # ========================
 class RSIStrategy(IndicatorStrategy):
     def __init__(self, symbol: str, period: int = 14, overbought: float = 70, oversold: float = 30):
@@ -262,7 +262,7 @@ class ATRStrategy(IndicatorStrategy):
         atr = sum(self.trs[-self.window:]) / self.window
 
         metadata = {"atr": atr}
-        # ¼ÙÉè×÷Îª¶¯Á¿¹ıÂËÆ÷£¬²»Ö±½Ó¸ø³ö½»Ò×ĞÅºÅ£¬½öÓÃÓÚ¸¨ÖúÆäËûĞÅºÅÅĞ¶Ï
+        # å‡è®¾ä½œä¸ºåŠ¨é‡è¿‡æ»¤å™¨ï¼Œä¸ç›´æ¥ç»™å‡ºäº¤æ˜“ä¿¡å·ï¼Œä»…ç”¨äºè¾…åŠ©å…¶ä»–ä¿¡å·åˆ¤æ–­
         return Signal(symbol=self.symbol, signal_type=SignalType.FILTER, time=kline["timestamp"], metadata=metadata)
 
     def get_params(self) -> dict:
@@ -277,7 +277,7 @@ class ATRStrategy(IndicatorStrategy):
 
 
 # ========================
-# ¶à¿ÕÀà
+# å¤šç©ºç±»
 # ========================
 class MACDStrategy(IndicatorStrategy):
     def __init__(self, symbol: str, short_period: int = 12, long_period: int = 26, signal_period: int = 9):
@@ -320,7 +320,7 @@ class MACDStrategy(IndicatorStrategy):
 
 
 # ========================
-# Ç÷ÊÆÀà
+# è¶‹åŠ¿ç±»
 # ========================
 class SMACrossoverStrategy(IndicatorStrategy):
     def __init__(self, symbol: str, short_window: int = 5, long_window: int = 20):
@@ -416,7 +416,7 @@ class ADXStrategy(IndicatorStrategy):
         if len(self.highs) <= self.window:
             return None
 
-        # ¼ò»¯ ADX ¼ÆËã£ºÕæÊµ³¡¾°¿Éµ÷ÓÃ ta-lib »ò×Ô¶¨ÒåÊµÏÖ
+        # ç®€åŒ– ADX è®¡ç®—ï¼šçœŸå®åœºæ™¯å¯è°ƒç”¨ ta-lib æˆ–è‡ªå®šä¹‰å®ç°
         adx = self.mock_adx_calc()
         metadata = {"adx": adx}
         if adx > self.adx_threshold:
@@ -424,7 +424,7 @@ class ADXStrategy(IndicatorStrategy):
         return None
 
     def mock_adx_calc(self) -> float:
-        return 20 + 10 * ((len(self.closes) % 10) / 10)  # Ä£ÄâÖµÓÃÓÚÕ¼Î»
+        return 20 + 10 * ((len(self.closes) % 10) / 10)  # æ¨¡æ‹Ÿå€¼ç”¨äºå ä½
 
     def get_params(self) -> dict:
         return {"window": self.window, "adx_threshold": self.adx_threshold}

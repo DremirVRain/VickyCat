@@ -32,6 +32,7 @@
     <Compile Include="strategy\base_strategy.py" />
     <Compile Include="strategy\candle_pattern_strategy.py" />
     <Compile Include="strategy\event_driven.py" />
+    <Compile Include="strategy\extract_all_strategy_class_name.py" />
     <Compile Include="strategy\indicator_strategy.py" />
     <Compile Include="strategy\micro_structure.py" />
     <Compile Include="strategy\strategy_signal.py" />
