@@ -36,6 +36,7 @@
     <Compile Include="strategy\indicator_strategy.py" />
     <Compile Include="strategy\micro_structure.py" />
     <Compile Include="strategy\strategy_signal.py" />
+    <Compile Include="strategy\strategy_utils.py" />
     <Compile Include="strategy_manager.py" />
     <Compile Include="strategy\structure_strategy.py" />
     <Compile Include="strategy\volume_strategy.py" />
