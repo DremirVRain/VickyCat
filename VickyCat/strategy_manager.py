@@ -1,14 +1,17 @@
 ﻿from typing import Callable, Dict, List, Optional
 from strategy.base_strategy import BaseStrategy, MarketContext
 from strategy.strategy_signal import Signal
-from datetime import datetime
+from datetime import datetime, timedelta
 from database import DatabaseManager
+from collections import defaultdict, deque
+
 
 class StrategyManager:
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager  # 直接挂接 DatabaseManager
         self.strategies: Dict[str, List[BaseStrategy]] = {}  # symbol -> strategies
         self.signal_callback: Callable[[str, Signal], None] = None  # 用户自定义处理 signal 的回调
+        self.kline_windows: Dict[str, deque] = defaultdict(lambda: deque(maxlen=20))  # symbol -> 最近20根分钟K线
 
     def register_strategy(self, symbol: str, strategy: BaseStrategy):
         """注册策略到指定 symbol"""
@@ -27,10 +30,10 @@ class StrategyManager:
         """
         end_time = kline["timestamp"]
         start_time = self._get_minute_start(end_time)
-        #data_1s = self.db_manager.get_kline_1s(symbol, start_time, end_time)
-        
-        # 构建市场上下文
+
+        self.kline_windows[symbol].append(kline)
         context = self._build_market_context(symbol, end_time)
+        context.recent_klines = list(self.kline_windows[symbol])  # 供策略回看结构
 
         for strategy in self.strategies.get(symbol, []):
             signal = strategy.generate_signal(kline, context=context)
@@ -53,6 +56,17 @@ class StrategyManager:
         highs = [r["high"] for r in rows if r["high"] is not None]
         lows = [r["low"] for r in rows if r["low"] is not None]
         volumes = [r["volume"] for r in rows if r["volume"] is not None]
+
+        # 取最近 N 秒（例如 60秒）数据作为微结构参考
+        micro_data = list(self.db_manager.data_cache.cache.get(symbol, []))[-60:]
+        micro_prices = [x["price"] for x in micro_data if "price" in x]
+        micro_volumes = [x["volume"] for x in micro_data if "volume" in x]
+        micro_turnovers = [x["turnover"] for x in micro_data if "turnover" in x]
+
+        micro_max = max(micro_prices) if micro_prices else None
+        micro_min = min(micro_prices) if micro_prices else None
+        tick_count = len(micro_data)
+
 
         def sma(data: List[float], n: int) -> Optional[float]:
             if len(data) >= n:
@@ -81,5 +95,12 @@ class StrategyManager:
             ma_long=ma_long,
             recent_high=recent_high,
             recent_low=recent_low,
-            volume_avg=volume_avg
+            volume_avg=volume_avg,    
+            
+            micro_prices=micro_prices,
+            micro_volumes=micro_volumes,
+            micro_turnover=micro_turnovers,
+            micro_max_price=micro_max,
+            micro_min_price=micro_min,
+            tick_count=tick_count
         )
