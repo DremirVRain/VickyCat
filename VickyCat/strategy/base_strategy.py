@@ -2,7 +2,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-from strategy.strategy_signal import Signal, SignalType
+from strategy.strategy_signal import Signal, SignalType, create_signal  
 from dataclasses import dataclass, field
 from collections import Union
 
@@ -55,21 +55,25 @@ class BaseStrategy(ABC):
         kline: dict,
         signal_type: SignalType,
         strength: float = 1.0,
-        metadata: Optional[dict] = None
+        metadata: Optional[dict] = None,
+        expected_action: Optional[str] = None
     ) -> Signal:
-        """统一构建 Signal 对象，自动注入策略名称、时间戳等。"""
+        """
+        统一构建 Signal 对象，自动注入策略名称、时间戳、收盘价、预期操作等。
+        """
         ts = kline.get("timestamp")
-        # 支持字符串或 datetime 对象
         if isinstance(ts, str):
             ts = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S")
-        return Signal(
+
+        return create_signal(
             symbol=self.symbol,
-            timestamp=ts,
             signal_type=signal_type,
-            price=kline["close"],
-            strength=strength,
             strategy_name=self.__class__.__name__,
-            metadata=metadata or {}
+            strength=strength,
+            timestamp=ts,
+            price=kline["close"],
+            metadata=metadata,
+            expected_action=expected_action
         )
 
     def __str__(self):

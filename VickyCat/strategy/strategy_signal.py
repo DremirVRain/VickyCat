@@ -47,7 +47,8 @@ def create_signal(
     strength: float,
     timestamp: Optional[Any] = None,
     price: Optional[float] = None,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    expected_action: Optional[str] = None
 ) -> Signal:
     """
     统一创建 Signal 实例，确保必需字段齐全，避免遗漏。
@@ -78,5 +79,6 @@ def create_signal(
         signal_type=signal_type,
         strategy_name=strategy_name,
         strength=strength,
-        metadata=metadata
+        metadata=metadata,
+        expected_action=expected_action
     )

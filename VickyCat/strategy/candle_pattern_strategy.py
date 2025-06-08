@@ -7,7 +7,6 @@ from datetime import datetime
 # ========================
 # 单K线反转形态策略
 # ========================
-
 class SingleBarReversalPattern(BuySellStrategy):
     def __init__(
         self,
@@ -83,14 +82,13 @@ class SingleBarReversalPattern(BuySellStrategy):
                 print(f"  is_bull = {is_bull}, is_bear = {is_bear}")
                 print(f"  strength = {strength:.2f}")
 
-            return Signal(
-                symbol=self.symbol,
-                timestamp=k.get("timestamp", datetime.now()),
-                price=k.get("close", 0.0),
+            return self.build_signal(
+                kline=k,
                 signal_type=self.signal_type,
-                strategy_name=self.__class__.__name__,
                 strength=strength,
-                metadata={"reason": f"SingleBarReversalPattern detected with shadow_type={self.shadow_type}"}
+                metadata={
+                    "reason": f"{self.__class__.__name__} with shadow_type={self.shadow_type}, trend={getattr(context, 'trend_info', 'unknown')}"
+                }
             )
         return None
 
@@ -172,14 +170,13 @@ class TwoBarReversalPattern(BuySellStrategy):
             strength = self.compute_strength(prev, curr, context)
             if strength < 0.1:
                 return None
-            return Signal(
-                symbol=self.symbol,
-                timestamp=curr.get("timestamp", datetime.now()),
-                price=curr.get("close", 0.0),
+            return self.build_signal(
+                kline=curr,
                 signal_type=self.signal_type,
-                strategy_name=self.__class__.__name__,
                 strength=strength,
-                metadata={"reason": f"{self.__class__.__name__} with trend={context.trend_info}"}
+                metadata={
+                    "reason": f"{self.__class__.__name__} with trend={getattr(context, 'trend_info', 'unknown')}"
+                }
             )
         return None
 
@@ -313,13 +310,10 @@ class ThreeBarReversalPattern(BuySellStrategy):
 
         if self.is_valid_pattern(a, b, c):
             strength = self.calculate_strength(a, b, c, context)
-            return Signal(
-                symbol=self.symbol,
-                timestamp=context.recent_klines[-1].get("timestamp", datetime.now()),
+            return self.build_signal(
+                kline=c,
                 signal_type=self.signal_type,
-                price=c["close"],
                 strength=strength,
-                strategy_name=self.__class__.__name__,
                 metadata={"reason": f"{self.__class__.__name__} after {self.require_trend or 'any'} trend"},
                 expected_action="open_long" if self.signal_type == SignalType.BUY else "open_short"
             )
@@ -418,13 +412,10 @@ class RisingThreePattern(BuySellStrategy):
         if k[4]["close"] > k[0]["close"]:
             strength = (k[4]["close"] - k[0]["close"]) / (k[0]["close"] + 1e-9)
             strength = max(0.0, min(strength, 1.0))
-            return Signal(
-                symbol=context.recent_klines[-1].get("symbol", "UNKNOWN"),
-                timestamp=context.recent_klines[-1].get("timestamp", datetime.now()),
+            return self.build_signal(
+                kline=k[4],
                 signal_type=SignalType.BUY,
-                price=k[4]["close"],
                 strength=strength,
-                strategy_name=self.__class__.__name__,
                 metadata={"pattern": "RisingThree"},
                 expected_action="open_long"
             )
@@ -449,17 +440,15 @@ class FallingThreePattern(BuySellStrategy):
         if k[4]["close"] < k[0]["close"]:
             strength = (k[0]["close"] - k[4]["close"]) / (k[0]["close"] + 1e-9)
             strength = max(0.0, min(strength, 1.0))
-            return Signal(
-                symbol=context.recent_klines[-1].get("symbol", "UNKNOWN"),
-                timestamp=context.recent_klines[-1].get("timestamp", datetime.now()),
+            return self.build_signal(
+                kline=k[4],
                 signal_type=SignalType.SELL,
-                price=k[4]["close"],
                 strength=strength,
-                strategy_name=self.__class__.__name__,
                 metadata={"pattern": "FallingThree"},
                 expected_action="open_short"
             )
         return None
+
 
 # ========================
 # 十字星
@@ -488,10 +477,11 @@ class DojiPattern(BuySellStrategy):
         if is_doji(k, self.doji_threshold):
             if self.debug:
                 print(f"[{k['timestamp']}] 检测 DojiPattern")
-            return Signal(
+            return self.build_signal(
+                kline=k,
                 signal_type=SignalType.NEUTRAL,
-                strategy_name=self.__class__.__name__,
-                strength=self.signal_strength
+                strength=self.signal_strength,
+                metadata={"reason": "DojiPattern detected"}
             )
         return None
 
@@ -545,10 +535,15 @@ class DragonflyDojiPattern(BuySellStrategy):
         if self.debug:
             print(f"[{k['timestamp']}] 检测 DragonflyDojiPattern")
             print(f"  lower_shadow = {ls:.4f}, range = {r:.4f}, strength = {strength:.2f}")
-        return Signal(
+        return self.build_signal(
+            kline=k,
             signal_type=SignalType.BUY,
-            strategy_name=self.__class__.__name__,
-            strength=strength
+            strength=strength,
+            metadata={
+                "reason": "DragonflyDojiPattern detected",
+                "lower_shadow": ls,
+                "range": r
+            }
         )
 
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
@@ -602,10 +597,15 @@ class GravestoneDojiPattern(BuySellStrategy):
         if self.debug:
             print(f"[{k['timestamp']}] 检测 GravestoneDojiPattern")
             print(f"  upper_shadow = {us:.4f}, range = {r:.4f}, strength = {strength:.2f}")
-        return Signal(
+        return self.build_signal(
+            kline=k,
             signal_type=SignalType.SELL,
-            strategy_name=self.__class__.__name__,
-            strength=strength
+            strength=strength,
+            metadata={
+                "reason": "GravestoneDojiPattern detected",
+                "upper_shadow": us,
+                "range": r
+            }
         )
 
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
