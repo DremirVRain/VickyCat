@@ -32,9 +32,9 @@ class MarketContext:
 
 
 class BaseStrategy(ABC):
-    def __init__(self, symbol: str, window_size: int = 10,  debug: bool = False):
+    def __init__(self, symbol: str):
         self.symbol = symbol
-        self.debug = debug
+        self.params = {}
 
     def log(self, msg: str):
         if self.debug:
@@ -82,35 +82,3 @@ class BaseStrategy(ABC):
     def __repr__(self):
         return self.__str__()
 
-
-class BuySellStrategy(BaseStrategy):
-    """返回 BUY/SELL 类型信号的策略"""
-    def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
-        pass  # 子类实现具体逻辑
-
-
-class TrendStrategy(BaseStrategy):
-    """返回 TREND_UP/TREND_DOWN 类型信号的策略"""
-    def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
-        pass  # 子类实现具体逻辑
-
-
-class CompositeStrategy(BaseStrategy):
-    def __init__(self, symbol: str, strategies: List[BaseStrategy], debug: bool = False):
-        super().__init__(symbol, debug)
-        self.strategies = strategies
-
-    def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
-        all_signals = []
-        for strategy in self.strategies:
-            sig = strategy.generate_signal(context=context)
-            if sig:
-                self.log(f"子策略 {strategy} 产生信号：{sig}")
-                all_signals.append(sig)
-
-        # 默认返回第一个 BUY/SELL 信号，趋势类信号不直接输出
-        for sig in all_signals:
-            if sig.signal_type in {SignalType.BUY, SignalType.SELL}:
-                return sig
-
-        return None
