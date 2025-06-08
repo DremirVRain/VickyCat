@@ -1,11 +1,12 @@
 ﻿# strategy_signal.py
 from enum import Enum
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Dict, Any
 
 class SignalType(Enum):
     BUY = "buy"              # 买入信号（看涨）
     SELL = "sell"            # 卖出信号（看跌）
+    NEUTRAL = "neutral"        # 中性信号，可能是平仓或无操作"
     HOLD = "hold"            # 持有，无操作
     TREND_UP = "trend_up"    # 趋势向上（趋势确认）
     TREND_DOWN = "trend_down" # 趋势向下（趋势确认）
@@ -39,15 +40,43 @@ class Signal:
     def __repr__(self):
         return f"<Signal {self.signal_type.value.upper()} | {self.symbol} | {self.timestamp} | strength={self.strength:.2f} | from={self.strategy_name}>"
 
-# class MarketCondition(Enum):
-#     UPTREND = auto()
-#     DOWNTREND = auto()
-#     SIDEWAYS = auto()
+def create_signal(
+    symbol: str,
+    signal_type: SignalType,
+    strategy_name: str,
+    strength: float,
+    timestamp: Optional[Any] = None,
+    price: Optional[float] = None,
+    metadata: Optional[Dict[str, Any]] = None
+) -> Signal:
+    """
+    统一创建 Signal 实例，确保必需字段齐全，避免遗漏。
 
-# def determine_trend(klines: list[dict]) -> MarketCondition:
-#     closes = [k["close"] for k in klines[-5:]]
-#     if all(x < y for x, y in zip(closes, closes[1:])):
-#         return MarketCondition.UPTREND
-#     elif all(x > y for x, y in zip(closes, closes[1:])):
-#         return MarketCondition.DOWNTREND
-#     return MarketCondition.SIDEWAYS
+    Args:
+        symbol: 标的代码
+        signal_type: 信号类型 (SignalType枚举)
+        strategy_name: 策略类名称
+        strength: 信号强度
+        timestamp: 时间戳，默认取当前时间
+        price: 当前价格，默认0
+        metadata: 附加信息字典
+
+    Returns:
+        Signal 实例
+    """
+    if timestamp is None:
+        timestamp = datetime.now()
+    if price is None:
+        price = 0.0
+    if metadata is None:
+        metadata = {}
+
+    return Signal(
+        symbol=symbol,
+        timestamp=timestamp,
+        price=price,
+        signal_type=signal_type,
+        strategy_name=strategy_name,
+        strength=strength,
+        metadata=metadata
+    )

@@ -13,7 +13,7 @@ class SingleBarReversalPattern(BuySellStrategy):
         self,
         symbol: str,
         signal_type: SignalType,
-        shadow_type: str = "lower",  # 'lower' for hammer/hanging man, 'upper' for shooting star/inverted hammer
+        shadow_type: str = "lower",
         min_body_ratio=0.5,
         wick_ratio=2.0,
         pattern_window=3,
@@ -45,13 +45,11 @@ class SingleBarReversalPattern(BuySellStrategy):
         is_bull = is_bullish(k)
         is_bear = is_bearish(k)
 
-        # 统一从 context 获取趋势，避免重复计算
         if self.signal_type == SignalType.BUY and not (context.is_uptrend or context.trend_strength > 0.2):
             return None
         if self.signal_type == SignalType.SELL and not (not context.is_uptrend and context.trend_strength < -0.2):
             return None
 
-        # 判断影线形态是否成立
         if self.shadow_type == "lower":
             wick_ok = ls > self.wick_ratio * b and us < 0.3 * r
             wick_ratio_val = ls / b
@@ -75,7 +73,8 @@ class SingleBarReversalPattern(BuySellStrategy):
             if strength < self.signal_strength_threshold:
                 return None
 
-            if self.debug:
+            # debug 打印可以保留或删除
+            if getattr(self, "debug", False):
                 print(f"✅ 匹配 {self.signal_type.name}: {k}")
                 print(f"[{k['timestamp']}] 检测 SingleBarReversalPattern")
                 print(f"  body = {b:.4f}, range = {r:.4f}, body/range = {b/r:.4f}")
@@ -85,19 +84,25 @@ class SingleBarReversalPattern(BuySellStrategy):
                 print(f"  strength = {strength:.2f}")
 
             return Signal(
+                symbol=self.symbol,
+                timestamp=k.get("timestamp", datetime.now()),
+                price=k.get("close", 0.0),
                 signal_type=self.signal_type,
                 strategy_name=self.__class__.__name__,
-                strength=strength
+                strength=strength,
+                metadata={"reason": f"SingleBarReversalPattern detected with shadow_type={self.shadow_type}"}
             )
         return None
 
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
-        if self.window is None or len(self.window) < self.required_candles():
+        if context is None or not context.recent_klines:
             return None
-        if context is None:
-            # 无context时无法做趋势判断，直接返回None
+
+        if len(context.recent_klines) < self.required_candles():
             return None
-        return self.is_pattern(self.window, context)
+
+        klines = context.recent_klines[-self.required_candles():]
+        return self.is_pattern(klines, context)
 
 
 
@@ -122,10 +127,7 @@ class ShootingStarPattern(SingleBarReversalPattern):
 
 
 # ========================
-# 双K线反转形态
-# ========================
-# ========================
-# 双K线反转形态
+# 双K线反转形态（含信号强度计算）
 # ========================
 class TwoBarReversalPattern(BuySellStrategy):
     def __init__(
@@ -133,44 +135,54 @@ class TwoBarReversalPattern(BuySellStrategy):
         symbol: str,
         signal_type: SignalType,
         require_trend: Optional[str] = None,  # "up", "down", or None
-        strength: float = 1.0,
+        base_strength: float = 1.0,
+        max_strength: float = 5.0,
         **kwargs
     ):
         super().__init__(symbol)
         self.signal_type = signal_type
         self.require_trend = require_trend
-        self.strength = strength
+        self.base_strength = base_strength
+        self.max_strength = max_strength
         self.params = kwargs
 
     def required_candles(self) -> int:
         return 2
 
     def is_valid_pattern(self, prev: dict, curr: dict) -> bool:
-        """需子类实现：判断是否为某种形态"""
         raise NotImplementedError
 
+    def compute_strength(self, prev: dict, curr: dict, context: Optional[MarketContext] = None) -> float:
+        structure_strength = 1.0
+        trend_strength = context.trend_strength if context and context.trend_strength else 1.0
+        return min(self.base_strength * structure_strength * trend_strength, self.max_strength)
+
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
-        if not context or not context.recent_klines or len(context.recent_klines) < 2:
+        if not context or len(context.recent_klines) < 2:
             return None
 
         prev, curr = context.recent_klines[-2], context.recent_klines[-1]
 
-        # 趋势过滤
-        if self.require_trend:
-            if self.require_trend == "up" and not context.is_uptrend:
-                return None
-            if self.require_trend == "down" and context.is_uptrend:
-                return None
+        if self.require_trend == "up" and context.is_uptrend is not True:
+            return None
+        if self.require_trend == "down" and context.is_uptrend is not False:
+            return None
 
         if self.is_valid_pattern(prev, curr):
+            strength = self.compute_strength(prev, curr, context)
+            if strength < 0.1:
+                return None
             return Signal(
                 symbol=self.symbol,
+                timestamp=curr.get("timestamp", datetime.now()),
+                price=curr.get("close", 0.0),
                 signal_type=self.signal_type,
                 strategy_name=self.__class__.__name__,
-                strength=self.strength * (context.trend_strength or 1.0),
-                reason=f"{self.__class__.__name__} after {self.require_trend or 'any'} trend"
+                strength=strength,
+                metadata={"reason": f"{self.__class__.__name__} with trend={context.trend_info}"}
             )
         return None
+
 
 
 class BullishEngulfingPattern(TwoBarReversalPattern):
@@ -184,6 +196,13 @@ class BullishEngulfingPattern(TwoBarReversalPattern):
                curr["open"] < prev["close"] * (1 + ratio) and \
                curr["close"] > prev["open"] * (1 - ratio)
 
+    def compute_strength(self, prev: dict, curr: dict, context: Optional[MarketContext] = None) -> float:
+        engulf_size = abs(curr["close"] - curr["open"])
+        prev_body = abs(prev["close"] - prev["open"])
+        structure_strength = min(engulf_size / (prev_body + 1e-6), 2.0)  # 限制最大结构强度
+        trend_strength = context.trend_strength if context else 1.0
+        return min(self.base_strength * structure_strength * trend_strength, self.max_strength)
+
 
 class BearishEngulfingPattern(TwoBarReversalPattern):
     def __init__(self, symbol: str, open_close_overlap_ratio=0.0, **kwargs):
@@ -195,6 +214,13 @@ class BearishEngulfingPattern(TwoBarReversalPattern):
         return is_bullish(prev) and is_bearish(curr) and \
                curr["open"] > prev["close"] * (1 - ratio) and \
                curr["close"] < prev["open"] * (1 + ratio)
+
+    def compute_strength(self, prev: dict, curr: dict, context: Optional[MarketContext] = None) -> float:
+        engulf_size = abs(curr["open"] - curr["close"])
+        prev_body = abs(prev["close"] - prev["open"])
+        structure_strength = min(engulf_size / (prev_body + 1e-6), 2.0)
+        trend_strength = context.trend_strength if context else 1.0
+        return min(self.base_strength * structure_strength * trend_strength, self.max_strength)
 
 
 class PiercingLinePattern(TwoBarReversalPattern):
@@ -209,6 +235,14 @@ class PiercingLinePattern(TwoBarReversalPattern):
                curr["open"] < prev["low"] and \
                curr["close"] > midpoint + ratio * abs(prev["close"] - prev["open"])
 
+    def compute_strength(self, prev: dict, curr: dict, context: Optional[MarketContext] = None) -> float:
+        midpoint = (prev["open"] + prev["close"]) / 2
+        close_penetration = max(0.0, curr["close"] - midpoint)
+        body_size = abs(prev["close"] - prev["open"])
+        structure_strength = min(close_penetration / (body_size + 1e-6), 2.0)
+        trend_strength = context.trend_strength if context else 1.0
+        return min(self.base_strength * structure_strength * trend_strength, self.max_strength)
+
 
 class DarkCloudCoverPattern(TwoBarReversalPattern):
     def __init__(self, symbol: str, max_close_below_midpoint_ratio=0.5, **kwargs):
@@ -222,6 +256,14 @@ class DarkCloudCoverPattern(TwoBarReversalPattern):
                curr["open"] > prev["high"] and \
                curr["close"] < midpoint - ratio * abs(prev["close"] - prev["open"])
 
+    def compute_strength(self, prev: dict, curr: dict, context: Optional[MarketContext] = None) -> float:
+        midpoint = (prev["open"] + prev["close"]) / 2
+        close_drop = max(0.0, midpoint - curr["close"])
+        body_size = abs(prev["close"] - prev["open"])
+        structure_strength = min(close_drop / (body_size + 1e-6), 2.0)
+        trend_strength = context.trend_strength if context else 1.0
+        return min(self.base_strength * structure_strength * trend_strength, self.max_strength)
+
 
 # ========================
 # 三K线反转形态
@@ -231,133 +273,142 @@ class ThreeBarReversalPattern(BuySellStrategy):
         self,
         symbol: str,
         signal_type: SignalType,
-        require_trend: Optional[str] = None,
-        strength: float = 1.0,
+        require_trend: Optional[str] = None,  # 'up' or 'down'
+        base_strength: float = 1.0,
         **kwargs
     ):
         super().__init__(symbol)
         self.signal_type = signal_type
-        self.require_trend = require_trend  # 'up' or 'down'
-        self.strength = strength
+        self.require_trend = require_trend
+        self.base_strength = base_strength
         self.params = kwargs
 
     def required_candles(self) -> int:
         return 3
 
     def is_valid_pattern(self, a: dict, b: dict, c: dict) -> bool:
-        """由子类实现形态判断逻辑"""
+        """由子类实现：判断是否为有效三K反转形态"""
         raise NotImplementedError
 
-    def generate_signal(self, klines: List[dict]) -> Optional[Signal]:
-        if len(klines) < 3:
-            return None
-        a, b, c = klines[-3:]
+    def calculate_strength(self, a: dict, b: dict, c: dict, context: MarketContext) -> float:
+        """默认强度计算：使用三K实体强度 + 趋势力度加权"""
+        body_ratio = lambda k: abs(k["close"] - k["open"]) / (k["high"] - k["low"] + 1e-6)
+        avg_body = sum([body_ratio(k) for k in [a, b, c]]) / 3
 
-        # 趋势过滤（仅用于前2根）
+        trend_weight = context.trend_strength if context.trend_strength else 1.0
+        volatility_weight = context.volatility if context.volatility else 1.0
+
+        return self.base_strength * avg_body * (0.7 + 0.3 * trend_weight) * (0.8 + 0.2 * volatility_weight)
+
+    def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
+        if not context or len(context.recent_klines) < 3:
+            return None
+        a, b, c = context.recent_klines[-3:]
+
+        # 趋势过滤（使用 context 提供的信息）
         if self.require_trend:
-            trend = detect_trend(klines[:-1])
-            if not trend or trend.direction != self.require_trend:
+            direction = context.trend_info.get("direction") if context.trend_info else None
+            if not direction or direction != self.require_trend:
                 return None
 
         if self.is_valid_pattern(a, b, c):
+            strength = self.calculate_strength(a, b, c, context)
             return Signal(
                 symbol=self.symbol,
+                timestamp=context.recent_klines[-1].get("timestamp", datetime.now()),
                 signal_type=self.signal_type,
+                price=c["close"],
+                strength=strength,
                 strategy_name=self.__class__.__name__,
-                strength=self.strength,
-                reason=f"{self.__class__.__name__} after {self.require_trend or 'any'} trend"
+                metadata={"reason": f"{self.__class__.__name__} after {self.require_trend or 'any'} trend"},
+                expected_action="open_long" if self.signal_type == SignalType.BUY else "open_short"
             )
         return None
 
-class MorningStarPattern(CandlePatternStrategy):
-    signal_type = SignalType.BUY
 
-    def __init__(self, symbol: str, max_mid_body_ratio=0.3, min_third_close_ratio=0.5):
-        super().__init__(symbol)
-        self.max_mid_body_ratio = max_mid_body_ratio  # 中间K实体最大比例（十字星或小实体）
-        self.min_third_close_ratio = min_third_close_ratio  # 第三根K线收盘必须突破前K实体一半以上比例
+class MorningStarPattern(ThreeBarReversalPattern):
+    def __init__(self, symbol: str, max_mid_body_ratio=0.3, min_third_close_ratio=0.5, require_gap=True, **kwargs):
+        super().__init__(symbol, signal_type=SignalType.BUY, require_trend='down', **kwargs)
+        self.max_mid_body_ratio = max_mid_body_ratio
+        self.min_third_close_ratio = min_third_close_ratio
+        self.require_gap = require_gap  # 新增是否必须跳空参数
 
-    def required_candles(self) -> int:
-        return 3
+    def is_valid_pattern(self, a: dict, b: dict, c: dict) -> bool:
+        if is_bearish(a) and is_bullish(c):
+            # 中间K线实体足够小
+            if body(b) <= self.max_mid_body_ratio * body(a):
+                # 跳空判断
+                if self.require_gap:
+                    if not (gap_down(b, a) and gap_up(c, b)):
+                        return False
+                a_mid = midpoint(a)
+                required_close = a_mid + self.min_third_close_ratio * abs(a["open"] - a["close"])
+                return c["close"] > required_close
+        return False
 
-    def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
-        a, b, c = klines[-3:]
-        if is_bearish(a) and body(b) <= self.max_mid_body_ratio * body(a) and is_bullish(c):
-            midpoint = (a["open"] + a["close"]) / 2
-            if c["close"] > midpoint + self.min_third_close_ratio * abs(a["close"] - a["open"]):
-                return self.signal_type
-        return None
 
-
-class EveningStarPattern(CandlePatternStrategy):
-    signal_type = SignalType.SELL
-
-    def __init__(self, symbol: str, max_mid_body_ratio=0.3, max_third_close_ratio=0.5):
-        super().__init__(symbol)
+class EveningStarPattern(ThreeBarReversalPattern):
+    def __init__(self, symbol: str, max_mid_body_ratio=0.3, max_third_close_ratio=0.5, require_gap=True, **kwargs):
+        super().__init__(symbol, signal_type=SignalType.SELL, require_trend='up', **kwargs)
         self.max_mid_body_ratio = max_mid_body_ratio
         self.max_third_close_ratio = max_third_close_ratio
+        self.require_gap = require_gap  # 新增是否必须跳空参数
 
-    def required_candles(self) -> int:
-        return 3
+    def is_valid_pattern(self, a: dict, b: dict, c: dict) -> bool:
+        if is_bullish(a) and is_bearish(c):
+            if body(b) <= self.max_mid_body_ratio * body(a):
+                if self.require_gap:
+                    if not (gap_up(b, a) and gap_down(c, b)):
+                        return False
+                a_mid = midpoint(a)
+                required_close = a_mid - self.max_third_close_ratio * abs(a["open"] - a["close"])
+                return c["close"] < required_close
+        return False
 
-    def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
-        a, b, c = klines[-3:]
-        if is_bullish(a) and body(b) <= self.max_mid_body_ratio * body(a) and is_bearish(c):
-            midpoint = (a["open"] + a["close"]) / 2
-            if c["close"] < midpoint - self.max_third_close_ratio * abs(a["close"] - a["open"]):
-                return self.signal_type
-        return None
 
 
-class ThreeWhiteSoldiersPattern(CandlePatternStrategy):
-    signal_type = SignalType.BUY
+class ThreeWhiteSoldiersPattern(ThreeBarReversalPattern):
+    def __init__(self, symbol: str, min_close_increase_ratio=0.01, **kwargs):
+        super().__init__(symbol, signal_type=SignalType.BUY, require_trend='down', **kwargs)
+        self.min_close_increase_ratio = min_close_increase_ratio
 
-    def __init__(self, symbol: str, min_close_increase_ratio=0.01):
-        super().__init__(symbol)
-        self.min_close_increase_ratio = min_close_increase_ratio  # 连续三根阳线收盘价必须至少上涨比例
-
-    def required_candles(self) -> int:
-        return 3
-
-    def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
-        a, b, c = klines[-3:]
+    def is_valid_pattern(self, a: dict, b: dict, c: dict) -> bool:
         if all(is_bullish(k) for k in [a, b, c]):
-            if (b["close"] - a["close"]) / a["close"] >= self.min_close_increase_ratio and \
-               (c["close"] - b["close"]) / b["close"] >= self.min_close_increase_ratio:
-                return self.signal_type
-        return None
+            if a["close"] <= 0 or b["close"] <= 0:
+                return False
+            r1 = (b["close"] - a["close"]) / a["close"]
+            r2 = (c["close"] - b["close"]) / b["close"]
+            return r1 >= self.min_close_increase_ratio and r2 >= self.min_close_increase_ratio
+        return False
 
 
-class ThreeBlackCrowsPattern(CandlePatternStrategy):
-    signal_type = SignalType.SELL
-
-    def __init__(self, symbol: str, min_close_decrease_ratio=0.01):
-        super().__init__(symbol)
+class ThreeBlackCrowsPattern(ThreeBarReversalPattern):
+    def __init__(self, symbol: str, min_close_decrease_ratio=0.01, **kwargs):
+        super().__init__(symbol, signal_type=SignalType.SELL, require_trend='up', **kwargs)
         self.min_close_decrease_ratio = min_close_decrease_ratio
 
-    def required_candles(self) -> int:
-        return 3
-
-    def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
-        a, b, c = klines[-3:]
+    def is_valid_pattern(self, a: dict, b: dict, c: dict) -> bool:
         if all(is_bearish(k) for k in [a, b, c]):
-            if (a["close"] - b["close"]) / a["close"] >= self.min_close_decrease_ratio and \
-               (b["close"] - c["close"]) / b["close"] >= self.min_close_decrease_ratio:
-                return self.signal_type
-        return None
+            if a["close"] <= 0 or b["close"] <= 0:
+                return False
+            r1 = (a["close"] - b["close"]) / a["close"]
+            r2 = (b["close"] - c["close"]) / b["close"]
+            return r1 >= self.min_close_decrease_ratio and r2 >= self.min_close_decrease_ratio
+        return False
+
 
 # ========================
 # 持续形态
 # ========================
-
-class RisingThreePattern(CandlePatternStrategy):
-    signal_type = SignalType.BUY
-
+class RisingThreePattern(BuySellStrategy):
     def required_candles(self) -> int:
         return 5
 
-    def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
-        k = klines[-5:]
+    def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
+        if context is None or len(context.recent_klines) < 5:
+            return None
+
+        k = context.recent_klines[-5:]
         if not (is_bullish(k[0]) and is_bullish(k[4])):
             return None
         if any(candle_range(k[i]) >= candle_range(k[0]) for i in range(1, 4)):
@@ -365,17 +416,30 @@ class RisingThreePattern(CandlePatternStrategy):
         if not all(k[i]["close"] < k[0]["close"] and k[i]["open"] > k[4]["open"] for i in range(1, 4)):
             return None
         if k[4]["close"] > k[0]["close"]:
-            return self.signal_type
+            strength = (k[4]["close"] - k[0]["close"]) / (k[0]["close"] + 1e-9)
+            strength = max(0.0, min(strength, 1.0))
+            return Signal(
+                symbol=context.recent_klines[-1].get("symbol", "UNKNOWN"),
+                timestamp=context.recent_klines[-1].get("timestamp", datetime.now()),
+                signal_type=SignalType.BUY,
+                price=k[4]["close"],
+                strength=strength,
+                strategy_name=self.__class__.__name__,
+                metadata={"pattern": "RisingThree"},
+                expected_action="open_long"
+            )
         return None
 
-class FallingThreePattern(CandlePatternStrategy):
-    signal_type = SignalType.SELL
 
+class FallingThreePattern(BuySellStrategy):
     def required_candles(self) -> int:
         return 5
 
-    def is_pattern(self, klines: List[dict]) -> Optional[SignalType]:
-        k = klines[-5:]
+    def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
+        if context is None or len(context.recent_klines) < 5:
+            return None
+
+        k = context.recent_klines[-5:]
         if not (is_bearish(k[0]) and is_bearish(k[4])):
             return None
         if any(candle_range(k[i]) >= candle_range(k[0]) for i in range(1, 4)):
@@ -383,7 +447,18 @@ class FallingThreePattern(CandlePatternStrategy):
         if not all(k[i]["close"] > k[0]["close"] and k[i]["open"] < k[4]["open"] for i in range(1, 4)):
             return None
         if k[4]["close"] < k[0]["close"]:
-            return self.signal_type
+            strength = (k[0]["close"] - k[4]["close"]) / (k[0]["close"] + 1e-9)
+            strength = max(0.0, min(strength, 1.0))
+            return Signal(
+                symbol=context.recent_klines[-1].get("symbol", "UNKNOWN"),
+                timestamp=context.recent_klines[-1].get("timestamp", datetime.now()),
+                signal_type=SignalType.SELL,
+                price=k[4]["close"],
+                strength=strength,
+                strategy_name=self.__class__.__name__,
+                metadata={"pattern": "FallingThree"},
+                expected_action="open_short"
+            )
         return None
 
 # ========================
