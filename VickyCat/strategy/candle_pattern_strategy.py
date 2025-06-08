@@ -486,9 +486,11 @@ class DojiPattern(BuySellStrategy):
         return None
 
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
-        if self.window is None or len(self.window) < self.required_candles():
+        if context is None or len(context.recent_klines) < self.required_candles():
             return None
-        return self.is_pattern(self.window)
+        
+        k = context.recent_klines[-1:]
+        return self.is_pattern(k)
 
 
 
@@ -547,9 +549,11 @@ class DragonflyDojiPattern(BuySellStrategy):
         )
 
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
-        if self.window is None or len(self.window) < self.required_candles():
+        if context is None or len(context.recent_klines) < self.required_candles():
             return None
-        return self.is_pattern(self.window)
+        
+        k = context.recent_klines[-3:]
+        return self.is_pattern(k)
 
 
 
@@ -609,9 +613,11 @@ class GravestoneDojiPattern(BuySellStrategy):
         )
 
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
-        if self.window is None or len(self.window) < self.required_candles():
+        if context is None or len(context.recent_klines) < self.required_candles():
             return None
-        return self.is_pattern(self.window)
+        
+        k = context.recent_klines[-3:]
+        return self.is_pattern(k)
 
 
 # ========================
