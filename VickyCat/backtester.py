@@ -8,6 +8,8 @@ from database import DatabaseManager
 from datetime import datetime, timedelta
 import time
 from utils.time_util import convert_to_eastern
+from dataclasses import dataclass, field
+from typing import Any
 
 @dataclass
 class BacktestSignalEvent:

@@ -4,7 +4,7 @@ from strategy.strategy_signal import Signal
 from datetime import datetime, timedelta
 from database import DatabaseManager
 from collections import defaultdict, deque
-
+from strategy.strategy_utils import detect_trend
 
 class StrategyManager:
     def __init__(self, db_manager: DatabaseManager):
@@ -47,27 +47,19 @@ class StrategyManager:
         return dt_minute_start.strftime("%Y-%m-%d %H:%M:%S")
 
     def _build_market_context(self, symbol: str, end_time_str: str) -> MarketContext:
-        """构造 MarketContext 对象，用于传入策略"""
         end_time = datetime.strptime(end_time_str, "%Y-%m-%d %H:%M:%S")
-        start_time = end_time - timedelta(minutes=100)  # 拉取过去100分钟K线
+        start_time = end_time - timedelta(minutes=100)
         rows = self.db_manager.get_kline_1m(symbol, start_time.strftime("%Y-%m-%d %H:%M:%S"), end_time_str)
+
+        if not rows:
+            return MarketContext()  # 返回空默认值
 
         closes = [r["close"] for r in rows if r["close"] is not None]
         highs = [r["high"] for r in rows if r["high"] is not None]
         lows = [r["low"] for r in rows if r["low"] is not None]
         volumes = [r["volume"] for r in rows if r["volume"] is not None]
 
-        # 取最近 N 秒（例如 60秒）数据作为微结构参考
-        micro_data = list(self.db_manager.data_cache.cache.get(symbol, []))[-60:]
-        micro_prices = [x["price"] for x in micro_data if "price" in x]
-        micro_volumes = [x["volume"] for x in micro_data if "volume" in x]
-        micro_turnovers = [x["turnover"] for x in micro_data if "turnover" in x]
-
-        micro_max = max(micro_prices) if micro_prices else None
-        micro_min = min(micro_prices) if micro_prices else None
-        tick_count = len(micro_data)
-
-
+        # 移动均线
         def sma(data: List[float], n: int) -> Optional[float]:
             if len(data) >= n:
                 return sum(data[-n:]) / n
@@ -77,15 +69,26 @@ class StrategyManager:
         ma_mid = sma(closes, 20)
         ma_long = sma(closes, 60)
 
-        is_uptrend = ma_short and ma_long and ma_short > ma_long
-        trend_strength = ((ma_short - ma_long) / ma_long) if (ma_short and ma_long and ma_long != 0) else 0
+        # 趋势识别增强
+        trend_info = detect_trend(rows, window=5) or {"direction": "sideways", "strength": 0.0}
+        is_uptrend = trend_info["direction"] == "up"
+        trend_strength = trend_info["strength"]
 
+        # 震荡度/波动性
+        volatility = sma([abs(h - l) for h, l in zip(highs, lows)], 20)
         recent_high = max(highs[-20:]) if len(highs) >= 20 else None
         recent_low = min(lows[-20:]) if len(lows) >= 20 else None
         volume_avg = sma(volumes, 20)
-        volatility = sma([abs(h - l) for h, l in zip(highs, lows)], 20)
 
-        # 构造并返回 MarketContext 实例
+        # 微结构数据
+        micro_data = list(self.db_manager.data_cache.cache.get(symbol, []))[-60:]
+        micro_prices = [x["price"] for x in micro_data if "price" in x]
+        micro_volumes = [x["volume"] for x in micro_data if "volume" in x]
+        micro_turnovers = [x["turnover"] for x in micro_data if "turnover" in x]
+        micro_max = max(micro_prices) if micro_prices else None
+        micro_min = min(micro_prices) if micro_prices else None
+        tick_count = len(micro_data)
+
         return MarketContext(
             is_uptrend=is_uptrend,
             trend_strength=trend_strength,
@@ -95,8 +98,9 @@ class StrategyManager:
             ma_long=ma_long,
             recent_high=recent_high,
             recent_low=recent_low,
-            volume_avg=volume_avg,    
-            
+            volume_avg=volume_avg,
+            trend_info=trend_info,  # 新增字段，结构为 {"direction": "up", "strength": 0.7}
+
             micro_prices=micro_prices,
             micro_volumes=micro_volumes,
             micro_turnover=micro_turnovers,

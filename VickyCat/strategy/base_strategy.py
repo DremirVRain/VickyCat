@@ -3,36 +3,32 @@ from abc import ABC, abstractmethod
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from strategy.strategy_signal import Signal, SignalType
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from collections import Union
 
 @dataclass
 class MarketContext:
-    is_uptrend: bool = False
-    near_support: bool = False
-    near_resistance: bool = False
-    volatility: float = 0.0
+    is_uptrend: Optional[bool] = None
     trend_strength: float = 0.0
-
-    ma_short: Optional[float] = None  # 短期均线，如5日/5分钟
-    ma_mid: Optional[float] = None    # 中期均线，如20日/20分钟
-    ma_long: Optional[float] = None   # 长期均线，如60日/60分钟
-    recent_high: Optional[float] = None  # 最近N周期高点
-    recent_low: Optional[float] = None   # 最近N周期低点
-    volume_avg: Optional[float] = None   # 平均成交量（N周期）
-    rsi: Optional[float] = None          # RSI 指标值
-    atr: Optional[float] = None          # ATR 波动率指标    
+    trend_info: Optional[Dict[str, Union[str, float]]] = None  # {"direction": "up", "strength": 0.73}
     
-    micro_prices: Optional[List[float]] = None        # 过去60s收盘价（或最新价）
-    micro_volumes: Optional[List[float]] = None       # 过去60s成交量
-    micro_turnover: Optional[List[float]] = None      # 过去60s成交额
-    micro_max_price: Optional[float] = None           # 子分钟高
-    micro_min_price: Optional[float] = None           # 子分钟低
-    tick_count: Optional[int] = None                  # 1s数据点数量
+    volatility: float = 0.0
+    ma_short: Optional[float] = None
+    ma_mid: Optional[float] = None
+    ma_long: Optional[float] = None
+    recent_high: Optional[float] = None
+    recent_low: Optional[float] = None
+    volume_avg: Optional[float] = None
 
-    # 滑动K线窗口
-    recent_klines: Optional[List[Dict]] = None
+    micro_prices: List[float] = field(default_factory=list)
+    micro_volumes: List[float] = field(default_factory=list)
+    micro_turnover: List[float] = field(default_factory=list)
+    micro_max_price: Optional[float] = None
+    micro_min_price: Optional[float] = None
+    tick_count: int = 0
 
-    extra: Dict[str, Any] = {}
+    recent_klines: List[dict] = field(default_factory=list)  # 供策略回看结构
+
 
 
 class BaseStrategy(ABC):

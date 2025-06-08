@@ -1,4 +1,5 @@
-﻿from typing import Optional, List
+﻿from typing import Optional, List, Dict
+import math
 
 def is_bullish(k):
     """阳线判断"""
@@ -86,6 +87,55 @@ def is_engulfing(current_k, prev_k, bullish=True):
             current_k["open"] > prev_k["close"] and
             current_k["close"] < prev_k["open"]
         )
+
+def detect_trend(klines: List[dict], window: int = 5) -> Optional[dict]:
+    """
+    趋势识别逻辑（增强版）：
+    - 收盘价连续上升/下降
+    - 均线斜率
+    - 效率比率（ER）
+    返回字典：{ direction: "up"/"down"/"sideways", strength: 0~1 }
+    """
+    if len(klines) < window + 1:
+        return None
+
+    closes = [k["close"] for k in klines[-(window + 1):]]
+
+    # 连续上升/下降次数
+    up_count = sum(closes[i] < closes[i + 1] for i in range(window))
+    down_count = sum(closes[i] > closes[i + 1] for i in range(window))
+
+    # 均线斜率（当前均线与前一个均线差）
+    ma_current = simple_moving_average(closes[1:], window)
+    ma_prev = simple_moving_average(closes[:-1], window)
+    slope = ma_current - ma_prev
+
+    # 效率比率
+    er = efficiency_ratio(closes, window)
+
+    # 趋势方向判断
+    if up_count >= window - 1 and slope > 0:
+        direction = "up"
+        strength = min(1.0, (up_count / window) * er * (slope / closes[-2]))
+    elif down_count >= window - 1 and slope < 0:
+        direction = "down"
+        strength = min(1.0, (down_count / window) * er * abs(slope / closes[-2]))
+    else:
+        direction = "sideways"
+        strength = max(0.0, er * 0.5)
+
+    return {
+        "direction": direction,
+        "strength": round(strength, 3)
+    }
+
+def is_uptrend(klines: List[dict], window: int = 5) -> Dict[str, Optional[float]]:
+    trend = detect_trend(klines, window)
+    return trend if trend["direction"] == "up" else {"direction": "none", "strength": 0.0}
+
+def is_downtrend(klines: List[dict], window: int = 5) -> Dict[str, Optional[float]]:
+    trend = detect_trend(klines, window)
+    return trend if trend["direction"] == "down" else {"direction": "none", "strength": 0.0}
 
 def compute_ma(data: List[float], window: int) -> float:
     if len(data) < window:
