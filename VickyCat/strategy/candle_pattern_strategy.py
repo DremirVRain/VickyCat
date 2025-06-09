@@ -121,21 +121,36 @@ class ShootingStarPattern(SingleBarReversalPattern):
 # 双K线反转形态（含信号强度计算）
 # ========================
 class TwoBarReversalPattern(BaseStrategy):
+    default_params = {
+        "base_strength": 1.0,
+        "max_strength": 5.0,
+        "open_close_overlap_ratio": 0.0,
+        "min_close_above_midpoint_ratio": 0.5,
+        "max_close_below_midpoint_ratio": 0.5,
+    }
+
+    param_space = {
+        "base_strength": [0.5, 1.0, 1.5],
+        "max_strength": [3.0, 5.0, 7.0],
+        "open_close_overlap_ratio": [0.0, 0.01, 0.02],
+        "min_close_above_midpoint_ratio": [0.3, 0.5, 0.7],
+        "max_close_below_midpoint_ratio": [0.3, 0.5, 0.7],
+    }
+
     def __init__(
         self,
         symbol: str,
         signal_type: SignalType,
         require_trend: Optional[str] = None,
-        base_strength: float = 1.0,
-        max_strength: float = 5.0,
         **kwargs
     ):
-        super().__init__(symbol, **kwargs)
+        super().__init__(symbol)
         self.signal_type = signal_type
         self.require_trend = require_trend
-        self.base_strength = base_strength
-        self.max_strength = max_strength
-        self.params = kwargs
+        self.params = self.default_params.copy()
+        self.params.update(kwargs)
+        self.base_strength = self.params["base_strength"]
+        self.max_strength = self.params["max_strength"]
 
     def required_candles(self) -> int:
         return 2
@@ -175,9 +190,8 @@ class TwoBarReversalPattern(BaseStrategy):
 
 
 class BullishEngulfingPattern(TwoBarReversalPattern):
-    def __init__(self, symbol: str, open_close_overlap_ratio=0.0, **kwargs):
-        super().__init__(symbol, SignalType.BUY, require_trend="down",
-                         open_close_overlap_ratio=open_close_overlap_ratio, **kwargs)
+    def __init__(self, symbol: str, **kwargs):
+        super().__init__(symbol, SignalType.BUY, require_trend="down", **kwargs)
 
     def is_valid_pattern(self, prev: dict, curr: dict) -> bool:
         ratio = self.params.get("open_close_overlap_ratio", 0.0)
@@ -194,9 +208,8 @@ class BullishEngulfingPattern(TwoBarReversalPattern):
 
 
 class BearishEngulfingPattern(TwoBarReversalPattern):
-    def __init__(self, symbol: str, open_close_overlap_ratio=0.0, **kwargs):
-        super().__init__(symbol, SignalType.SELL, require_trend="up",
-                         open_close_overlap_ratio=open_close_overlap_ratio, **kwargs)
+    def __init__(self, symbol: str, **kwargs):
+        super().__init__(symbol, SignalType.SELL, require_trend="up", **kwargs)
 
     def is_valid_pattern(self, prev: dict, curr: dict) -> bool:
         ratio = self.params.get("open_close_overlap_ratio", 0.0)
@@ -213,9 +226,8 @@ class BearishEngulfingPattern(TwoBarReversalPattern):
 
 
 class PiercingLinePattern(TwoBarReversalPattern):
-    def __init__(self, symbol: str, min_close_above_midpoint_ratio=0.5, **kwargs):
-        super().__init__(symbol, SignalType.BUY, require_trend="down",
-                         min_close_above_midpoint_ratio=min_close_above_midpoint_ratio, **kwargs)
+    def __init__(self, symbol: str, **kwargs):
+        super().__init__(symbol, SignalType.BUY, require_trend="down", **kwargs)
 
     def is_valid_pattern(self, prev: dict, curr: dict) -> bool:
         midpoint = (prev["open"] + prev["close"]) / 2
@@ -234,9 +246,8 @@ class PiercingLinePattern(TwoBarReversalPattern):
 
 
 class DarkCloudCoverPattern(TwoBarReversalPattern):
-    def __init__(self, symbol: str, max_close_below_midpoint_ratio=0.5, **kwargs):
-        super().__init__(symbol, SignalType.SELL, require_trend="up",
-                         max_close_below_midpoint_ratio=max_close_below_midpoint_ratio, **kwargs)
+    def __init__(self, symbol: str, **kwargs):
+        super().__init__(symbol, SignalType.SELL, require_trend="up", **kwargs)
 
     def is_valid_pattern(self, prev: dict, curr: dict) -> bool:
         midpoint = (prev["open"] + prev["close"]) / 2
