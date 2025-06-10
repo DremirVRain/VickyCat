@@ -46,8 +46,8 @@ class SingleBarReversalPattern(BaseStrategy):
         is_bull = is_bullish(k)
         is_bear = is_bearish(k)
 
-        trend_strength = context.trend_strength
-        is_up = context.is_uptrend
+        trend_strength = context.trend_strength()
+        is_up = context.is_uptrend()
 
         if self.signal_type == SignalType.BUY and not (is_up or trend_strength > 0.2):
             return None
@@ -159,7 +159,7 @@ class TwoBarReversalPattern(BaseStrategy):
 
     def compute_strength(self, prev: dict, curr: dict, context: Optional[MarketContext] = None) -> float:
         structure_strength = 1.0
-        trend_strength = context.trend_strength if context and context.trend_strength else 1.0
+        trend_strength = context.trend_strength()
         base_strength = self.params["base_strength"]
         max_strength = self.params["max_strength"]
         return min(base_strength * structure_strength * trend_strength, max_strength)
@@ -170,9 +170,9 @@ class TwoBarReversalPattern(BaseStrategy):
 
         prev, curr = context.recent_klines[-2], context.recent_klines[-1]
 
-        if self.require_trend == "up" and context.is_uptrend is not True:
+        if self.require_trend == "up" and context.is_uptrend() is not True:
             return None
-        if self.require_trend == "down" and context.is_uptrend is not False:
+        if self.require_trend == "down" and context.is_uptrend() is not False:
             return None
 
         if self.is_valid_pattern(prev, curr):
@@ -218,7 +218,7 @@ class BullishEngulfingPattern(TwoBarReversalPattern):
         engulf_size = abs(curr["close"] - curr["open"])
         prev_body = abs(prev["close"] - prev["open"])
         structure_strength = min(engulf_size / (prev_body + 1e-6), 2.0)
-        trend_strength = context.trend_strength if context else 1.0
+        trend_strength = context.trend_strength()
         base_strength = self.params["base_strength"]
         max_strength = self.params["max_strength"]
         return min(base_strength * structure_strength * trend_strength, max_strength)
@@ -252,7 +252,7 @@ class BearishEngulfingPattern(TwoBarReversalPattern):
         engulf_size = abs(curr["open"] - curr["close"])
         prev_body = abs(prev["close"] - prev["open"])
         structure_strength = min(engulf_size / (prev_body + 1e-6), 2.0)
-        trend_strength = context.trend_strength if context else 1.0
+        trend_strength = context.trend_strength()
         base_strength = self.params["base_strength"]
         max_strength = self.params["max_strength"]
         return min(base_strength * structure_strength * trend_strength, max_strength)
@@ -288,7 +288,7 @@ class PiercingLinePattern(TwoBarReversalPattern):
         close_penetration = max(0.0, curr["close"] - midpoint)
         body_size = abs(prev["close"] - prev["open"])
         structure_strength = min(close_penetration / (body_size + 1e-6), 2.0)
-        trend_strength = context.trend_strength if context else 1.0
+        trend_strength = context.trend_strength()
         base_strength = self.params["base_strength"]
         max_strength = self.params["max_strength"]
         return min(base_strength * structure_strength * trend_strength, max_strength)
@@ -324,7 +324,7 @@ class DarkCloudCoverPattern(TwoBarReversalPattern):
         close_drop = max(0.0, midpoint - curr["close"])
         body_size = abs(prev["close"] - prev["open"])
         structure_strength = min(close_drop / (body_size + 1e-6), 2.0)
-        trend_strength = context.trend_strength if context else 1.0
+        trend_strength =context.trend_strength()
         base_strength = self.params["base_strength"]
         max_strength = self.params["max_strength"]
         return min(base_strength * structure_strength * trend_strength, max_strength)
@@ -367,7 +367,7 @@ class ThreeBarReversalPattern(BaseStrategy):
         body_ratio = lambda k: abs(k["close"] - k["open"]) / (k["high"] - k["low"] + 1e-6)
         avg_body = sum([body_ratio(k) for k in [a, b, c]]) / 3
 
-        trend_weight = context.trend_strength if context.trend_strength else 1.0
+        trend_weight = context.trend_strength()
         volatility_weight = context.volatility if context.volatility else 1.0
         base_strength = self.params["base_strength"]
 
@@ -636,11 +636,13 @@ class DojiPattern(BaseStrategy):
     default_params = {
         "doji_threshold": 0.1,
         "signal_strength": 0.5,
+        "trend_filter_enabled": True,
     }
 
     param_space = {
         "doji_threshold": [0.05, 0.1, 0.2],
         "signal_strength": [0.3, 0.5, 0.7, 1.0],
+        "trend_filter_enabled": [True, False],
     }
 
     def __init__(self, symbol: str, **kwargs):
@@ -671,6 +673,11 @@ class DojiPattern(BaseStrategy):
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
         if context is None or len(context.recent_klines) < 1:
             return None
+        
+        if self.params["trend_filter_enabled"]:
+            if context and context.is_uptrend(): 
+                return None
+
         return self.is_pattern(context.recent_klines[-1:])
 
 
@@ -804,12 +811,14 @@ class GravestoneDojiPattern(BaseStrategy):
 class BullishHaramiPattern(BaseStrategy):
     default_params = {
         "max_body_ratio": 0.5,
-        "signal_strength": 1.0
+        "signal_strength": 1.0,
+        "min_trend_strength": 0.5
     }
 
     param_space = {
         "max_body_ratio": [0.4, 0.5, 0.6],
-        "signal_strength": [0.5, 1.0, 1.5]
+        "signal_strength": [0.5, 1.0, 1.5],
+        "min_trend_strength": [0.4, 0.5, 0.6]
     }
 
     def __init__(self, symbol: str, **kwargs):
@@ -820,10 +829,14 @@ class BullishHaramiPattern(BaseStrategy):
     def required_candles(self) -> int:
         return 2
 
-    def is_pattern(self, klines: List[dict]) -> Optional[Signal]:
+    def is_pattern(self, klines: List[dict], context: Optional[MarketContext]) -> Optional[Signal]:
         prev, curr = klines[-2], klines[-1]
         prev_body = abs(prev["close"] - prev["open"])
         curr_body = abs(curr["close"] - curr["open"])
+
+        if context and context.trend_strength() < self.params["min_trend_strength"]:
+            return None
+
         if is_bearish(prev) and is_bullish(curr):
             if curr_body <= self.params["max_body_ratio"] * prev_body:
                 if curr["open"] > prev["close"] and curr["close"] < prev["open"]:
@@ -844,18 +857,20 @@ class BullishHaramiPattern(BaseStrategy):
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
         if context is None or len(context.recent_klines) < self.required_candles():
             return None
-        return self.is_pattern(context.recent_klines[-2:])
+        return self.is_pattern(context.recent_klines[-2:], context)
 
 
 class BearishHaramiPattern(BaseStrategy):
     default_params = {
         "max_body_ratio": 0.5,
-        "signal_strength": 1.0
+        "signal_strength": 1.0,
+        "min_trend_strength": 0.5  # 新增的趋势强度阈值参数
     }
 
     param_space = {
         "max_body_ratio": [0.4, 0.5, 0.6],
-        "signal_strength": [0.5, 1.0, 1.5]
+        "signal_strength": [0.5, 1.0, 1.5],
+        "min_trend_strength": [0.4, 0.5, 0.6]  # 新增的趋势强度参数选择
     }
 
     def __init__(self, symbol: str, **kwargs):
@@ -866,10 +881,15 @@ class BearishHaramiPattern(BaseStrategy):
     def required_candles(self) -> int:
         return 2
 
-    def is_pattern(self, klines: List[dict]) -> Optional[Signal]:
+    def is_pattern(self, klines: List[dict], context: Optional[MarketContext]) -> Optional[Signal]:
         prev, curr = klines[-2], klines[-1]
         prev_body = abs(prev["close"] - prev["open"])
         curr_body = abs(curr["close"] - curr["open"])
+        
+        # 新增趋势强度过滤
+        if context and context.trend_strength < self.params["min_trend_strength"]:
+            return None
+        
         if is_bullish(prev) and is_bearish(curr):
             if curr_body <= self.params["max_body_ratio"] * prev_body:
                 if curr["open"] < prev["close"] and curr["close"] > prev["open"]:
@@ -890,18 +910,20 @@ class BearishHaramiPattern(BaseStrategy):
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
         if context is None or len(context.recent_klines) < self.required_candles():
             return None
-        return self.is_pattern(context.recent_klines[-2:])
+        return self.is_pattern(context.recent_klines[-2:], context)
 
 
 class TweezerBottomPattern(BaseStrategy):
     default_params = {
         "max_low_diff": 0.001,
-        "signal_strength": 1.0
+        "signal_strength": 1.0,
+        "min_trend_strength": 0.5  # 新增的趋势强度阈值参数
     }
 
     param_space = {
         "max_low_diff": [0.001, 0.002, 0.003],
-        "signal_strength": [0.5, 1.0, 1.5]
+        "signal_strength": [0.5, 1.0, 1.5],
+        "min_trend_strength": [0.4, 0.5, 0.6]  # 新增的趋势强度参数选择
     }
 
     def __init__(self, symbol: str, **kwargs):
@@ -912,9 +934,14 @@ class TweezerBottomPattern(BaseStrategy):
     def required_candles(self) -> int:
         return 2
 
-    def is_pattern(self, klines: List[dict]) -> Optional[Signal]:
+    def is_pattern(self, klines: List[dict], context: Optional[MarketContext]) -> Optional[Signal]:
         prev, curr = klines[-2], klines[-1]
         low_diff = abs(prev["low"] - curr["low"]) / max(prev["low"], curr["low"])
+        
+        # 新增趋势强度过滤
+        if context and context.trend_strength < self.params["min_trend_strength"]:
+            return None
+        
         if low_diff <= self.params["max_low_diff"] and is_bearish(prev) and is_bullish(curr):
             if self.debug:
                 print(f"[{curr['timestamp']}] 检测 TweezerBottomPattern")
@@ -932,18 +959,20 @@ class TweezerBottomPattern(BaseStrategy):
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
         if context is None or len(context.recent_klines) < self.required_candles():
             return None
-        return self.is_pattern(context.recent_klines[-2:])
+        return self.is_pattern(context.recent_klines[-2:], context)
 
 
 class TweezerTopPattern(BaseStrategy):
     default_params = {
         "max_high_diff": 0.001,
-        "signal_strength": 1.0
+        "signal_strength": 1.0,
+        "min_trend_strength": 0.5  # 新增的趋势强度阈值参数
     }
 
     param_space = {
         "max_high_diff": [0.001, 0.002, 0.003],
-        "signal_strength": [0.5, 1.0, 1.5]
+        "signal_strength": [0.5, 1.0, 1.5],
+        "min_trend_strength": [0.4, 0.5, 0.6]  # 新增的趋势强度参数选择
     }
 
     def __init__(self, symbol: str, **kwargs):
@@ -954,9 +983,14 @@ class TweezerTopPattern(BaseStrategy):
     def required_candles(self) -> int:
         return 2
 
-    def is_pattern(self, klines: List[dict]) -> Optional[Signal]:
+    def is_pattern(self, klines: List[dict], context: Optional[MarketContext]) -> Optional[Signal]:
         prev, curr = klines[-2], klines[-1]
         high_diff = abs(prev["high"] - curr["high"]) / max(prev["high"], curr["high"])
+        
+        # 新增趋势强度过滤
+        if context and context.trend_strength < self.params["min_trend_strength"]:
+            return None
+        
         if high_diff <= self.params["max_high_diff"] and is_bullish(prev) and is_bearish(curr):
             if self.debug:
                 print(f"[{curr['timestamp']}] 检测 TweezerTopPattern")
@@ -974,7 +1008,7 @@ class TweezerTopPattern(BaseStrategy):
     def generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
         if context is None or len(context.recent_klines) < self.required_candles():
             return None
-        return self.is_pattern(context.recent_klines[-2:])
+        return self.is_pattern(context.recent_klines[-2:], context)
 
 
 # ========================

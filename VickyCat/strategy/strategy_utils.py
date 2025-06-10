@@ -229,3 +229,10 @@ def calculate_profit_loss(entry_price: float, exit_price: float, position_size: 
 def average_price(prices: List[float]) -> float:
     """价格平均值"""
     return sum(prices) / len(prices) if prices else 0.0
+
+def compute_std(prices: List[float], window: int, ma: float) -> float:
+    """计算价格的标准差"""
+    if len(prices) < window:
+        return 0.0
+    squared_diffs = [(price - ma) ** 2 for price in prices[-window:]]
+    return math.sqrt(sum(squared_diffs) / window)

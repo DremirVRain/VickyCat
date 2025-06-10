@@ -90,8 +90,6 @@ class StrategyManager:
         tick_count = len(micro_data)
 
         return MarketContext(
-            is_uptrend=is_uptrend,
-            trend_strength=trend_strength,
             volatility=volatility or 0.0,
             ma_short=ma_short,
             ma_mid=ma_mid,

@@ -8,8 +8,6 @@ from collections import Union
 
 @dataclass
 class MarketContext:
-    is_uptrend: Optional[bool] = None
-    trend_strength: float = 0.0
     trend_info: Optional[Dict[str, Union[str, float]]] = None  # {"direction": "up", "strength": 0.73}
     
     volatility: float = 0.0
@@ -28,7 +26,18 @@ class MarketContext:
     tick_count: int = 0
 
     recent_klines: List[dict] = field(default_factory=list)  # 供策略回看结构
+    
+    @property
+    def is_uptrend(self) -> Optional[bool]:
+        if self.trend_info and "direction" in self.trend_info:
+            return self.trend_info["direction"] == "up"
+        return None
 
+    @property
+    def trend_strength(self) -> float:
+        if self.trend_info and "strength" in self.trend_info:
+            return self.trend_info["strength"]
+        return 0.0
 
 
 class BaseStrategy(ABC):
