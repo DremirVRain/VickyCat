@@ -101,7 +101,7 @@ class Backtester:
             pending = self.pending_evals[symbol]
 
             for idx, kline in enumerate(klines):
-                self.strategy_manager.on_kline(symbol, kline, idx)
+                self.strategy_manager.on_quote(symbol, kline, idx)
                 time.sleep(0.001)
 
             for eval_info in pending:

@@ -7,8 +7,8 @@ class SignalType(Enum):
     BUY = "buy"              # 买入信号（看涨）
     SELL = "sell"            # 卖出信号（看跌）
     HOLD = "hold"            # 持有，无操作
-    TREND_UP = "trend_up"    # 趋势向上（趋势确认）
-    TREND_DOWN = "trend_down" # 趋势向下（趋势确认）
+    # TREND_UP = "trend_up"    # 趋势向上（趋势确认）#这两个没有策略输出，暂时注释掉
+    # TREND_DOWN = "trend_down" # 趋势向下（趋势确认）
     FILTER = "filter"      # 过滤信号，仅用于辅助其他信号判断
     INDICATOR = "indicator"  # 指标信号，基于技术指标的信号
     STRUCTURE = "structure"  # 结构信号，基于价格结构的信号

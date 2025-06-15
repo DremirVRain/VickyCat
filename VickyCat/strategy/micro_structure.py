@@ -4,6 +4,8 @@ from typing import Optional, List
 
 class MicrostructureStrategy(BaseStrategy):
     """盘口 / 微结构类策略基类"""
+    strategy_category = "microstructure"
+
     default_params = {
     }
 

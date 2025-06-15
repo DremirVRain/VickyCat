@@ -41,6 +41,8 @@ class MarketContext:
 
 
 class BaseStrategy(ABC):
+    strategy_category: str = "generic"
+
     def __init__(self, symbol: str):
         self.symbol = symbol
         self.params = {}

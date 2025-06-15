@@ -3,8 +3,24 @@ from strategy_signal import SignalType, Signal
 from typing import Optional
 from datetime import datetime
 
+class StructureStrategy(BaseStrategy):
+    strategy_category = "structure"
 
-class BreakoutStrategy(BaseStrategy):
+    default_params = {
+    }
+
+    param_space = {
+    }
+
+    def __init__(self, symbol: str, **kwargs):
+        super().__init__(symbol)
+        self.params = self.default_params.copy()
+        self.params.update(kwargs)
+
+    def  generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
+        raise NotImplementedError
+
+class BreakoutStrategy(StructureStrategy):
     """
     判断是否突破最近 N 根 K 线的高点或低点，用于趋势确认。
     """
@@ -54,7 +70,7 @@ class BreakoutStrategy(BaseStrategy):
         return None
 
 
-class MarketStructureStrategy(BaseStrategy):
+class MarketStructureStrategy(StructureStrategy):
     """
     识别前高前低（HH/HL, LH/LL）结构，辅助趋势识别与转折判断。
     """
@@ -116,7 +132,7 @@ class MarketStructureStrategy(BaseStrategy):
         return self.build_signal(kline, SignalType.STRUCTURE, metadata)
 
 
-class HeadShouldersStrategy(BaseStrategy):
+class HeadShouldersStrategy(StructureStrategy):
     """
     识别典型的头肩顶（Head & Shoulders）或头肩底形态，提示趋势反转。
     """
@@ -196,7 +212,7 @@ class HeadShouldersStrategy(BaseStrategy):
         return None
 
 
-class TripleTopBottomStrategy(BaseStrategy):
+class TripleTopBottomStrategy(StructureStrategy):
     """
     识别三顶/三底结构：形成三个相近的高点或低点，第三个未突破前两个。
     """
@@ -243,7 +259,7 @@ class TripleTopBottomStrategy(BaseStrategy):
         return None
 
 
-class DoubleTopBottomStrategy(BaseStrategy):
+class DoubleTopBottomStrategy(StructureStrategy):
     """
     识别双顶/双底结构：连续出现两个相近高点或低点，第二个未能突破。
     """
@@ -289,7 +305,7 @@ class DoubleTopBottomStrategy(BaseStrategy):
         return None
 
 
-class TripleTopBottomStrategy(BaseStrategy):
+class TripleTopBottomStrategy(StructureStrategy):
     """
     识别三顶/三底结构：形成三个相近的高点或低点，第三个未突破前两个。
     """
@@ -336,7 +352,7 @@ class TripleTopBottomStrategy(BaseStrategy):
         return None
 
 
-class FlagPennantStrategy(BaseStrategy):
+class FlagPennantStrategy(StructureStrategy):
     """
     识别旗形/三角形形态：价格形成一个整理的三角形区域，突破该区域可能会继续沿着趋势方向运动。
     """
@@ -384,7 +400,7 @@ class FlagPennantStrategy(BaseStrategy):
         return None
 
 
-class GapStrategy(BaseStrategy):
+class GapStrategy(StructureStrategy):
     """
     识别跳空：当前开盘价与前一根K线的收盘价差距较大。
     """
@@ -426,7 +442,7 @@ class GapStrategy(BaseStrategy):
         return None
 
 
-class RangeBoundStrategy(BaseStrategy):
+class RangeBoundStrategy(StructureStrategy):
     """
     判断价格是否处于区间震荡：高点低点相对稳定。
     """
@@ -473,7 +489,7 @@ class RangeBoundStrategy(BaseStrategy):
         return None
 
 
-class SupportResistanceBreakStrategy(BaseStrategy):
+class SupportResistanceBreakStrategy(StructureStrategy):
     """
     判断价格突破支撑/阻力。
     """
@@ -519,7 +535,7 @@ class SupportResistanceBreakStrategy(BaseStrategy):
         return None
 
 
-class CupWithHandleStrategy(BaseStrategy):
+class CupWithHandleStrategy(StructureStrategy):
     """
     识别“杯柄形态”，以趋势持续的回撤-盘整-上破逻辑为核心。
     """
@@ -570,7 +586,7 @@ class CupWithHandleStrategy(BaseStrategy):
         return None
 
 
-class TrendlineBreakStrategy(BaseStrategy):
+class TrendlineBreakStrategy(StructureStrategy):
     """
     识别趋势线突破，粗略估算线性趋势并判断突破信号
     """
@@ -608,7 +624,7 @@ class TrendlineBreakStrategy(BaseStrategy):
         return None
 
 
-class WedgeStrategy(BaseStrategy):
+class WedgeStrategy(StructureStrategy):
     """
     通过高低点收敛判断是否可能突破，区分上涨楔形与下跌楔形。
     """

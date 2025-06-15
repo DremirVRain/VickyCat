@@ -8,7 +8,7 @@ async def main():
     strategy_manager = StrategyManager(data_feed.db_manager)
     
     # 引入策略处理：绑定策略管理器的接口
-    data_feed.set_kline_callback(strategy_manager.on_kline)
+    data_feed.set_quote_callback(strategy_manager.on_quote)
 
     await data_feed.run()
 

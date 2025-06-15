@@ -1,17 +1,78 @@
-﻿from typing import Callable, Dict, List, Optional
+﻿from typing import Callable, Dict, List, Optional, Any
 from strategy.base_strategy import BaseStrategy, MarketContext
-from strategy.strategy_signal import Signal
+from strategy.strategy_signal import Signal, SignalType
 from datetime import datetime, timedelta
 from database import DatabaseManager
 from collections import defaultdict, deque
 from strategy.strategy_utils import detect_trend
+
+STRATEGY_WEIGHTS = {
+    "pattern": 0.3,
+    "indicator": 0.2,
+    "microstructure": 0.4,
+    "structure": 0.1
+}
+
+class StrategyFusionManager:
+    def __init__(self, strategy_weights: Dict[str, float]):
+        self.strategy_weights = strategy_weights
+        self.signals_by_symbol: Dict[str, List[Signal]] = defaultdict(list)
+
+    def collect_signal(self, symbol: str, signal: Signal, strategy: BaseStrategy):
+        """收集每个策略输出的信号"""
+        signal.metadata["strategy_category"] = strategy.strategy_category
+        self.signals_by_symbol[symbol].append(signal)
+
+    def clear(self, symbol: str):
+        self.signals_by_symbol[symbol].clear()
+
+    def fuse_signals(self, symbol: str) -> Optional[Signal]:
+        """融合策略生成的信号（按类型加权）"""
+        signals = self.signals_by_symbol[symbol]
+        if not signals:
+            return None
+
+        buy_strength = 0.0
+        sell_strength = 0.0
+        total_weight = 0.0
+
+        for sig in signals:
+            category = sig.metadata.get("strategy_category", "generic")
+            weight = self.strategy_weights.get(category, 0.0)
+            if sig.signal_type == SignalType.BUY:
+                buy_strength += sig.strength * weight
+            elif sig.signal_type == SignalType.SELL:
+                sell_strength += sig.strength * weight
+            total_weight += weight
+
+        if buy_strength > sell_strength and buy_strength > 0.1:
+            return Signal(
+                symbol=symbol,
+                timestamp=signals[-1].timestamp,
+                signal_type=SignalType.BUY,
+                price=signals[-1].price,
+                strength=buy_strength / total_weight,
+                strategy_name="FusionManager"
+            )
+        elif sell_strength > buy_strength and sell_strength > 0.1:
+            return Signal(
+                symbol=symbol,
+                timestamp=signals[-1].timestamp,
+                signal_type=SignalType.SELL,
+                price=signals[-1].price,
+                strength=sell_strength / total_weight,
+                strategy_name="FusionManager"
+            )
+        return None
+
 
 class StrategyManager:
     def __init__(self, db_manager: DatabaseManager):
         self.db_manager = db_manager  # 直接挂接 DatabaseManager
         self.strategies: Dict[str, List[BaseStrategy]] = {}  # symbol -> strategies
         self.signal_callback: Callable[[str, Signal], None] = None  # 用户自定义处理 signal 的回调
-        self.kline_windows: Dict[str, deque] = defaultdict(lambda: deque(maxlen=20))  # symbol -> 最近20根分钟K线
+        self.fusion_manager = StrategyFusionManager(STRATEGY_WEIGHTS)
+        self.current_minute_kline: Dict[str, Dict] = {}
 
     def register_strategy(self, symbol: str, strategy: BaseStrategy):
         """注册策略到指定 symbol"""
@@ -23,22 +84,20 @@ class StrategyManager:
         """设置 signal 生成后的回调函数，常用于记录或下单"""
         self.signal_callback = callback
 
-    def on_kline(self, symbol: str, kline: Dict, index=None):
-        """
-        主入口：接收一根 1 分钟级别的 K 线，触发所有该 symbol 下已注册策略。
-        会自动拉取该分钟内的 1 秒数据，供策略分析。
-        """
-        end_time = kline["timestamp"]
-        start_time = self._get_minute_start(end_time)
+    def on_quote(self, symbol: str, quote: Dict[str, Any], index=None):
+        self.kline_windows[symbol].append(quote)  # 用 quote 模拟小时间窗
+        context = self._build_market_context(symbol, quote["timestamp"])
+        context.recent_quotes = list(self.kline_windows[symbol])  # 注意：已非 kline，而是 quote
 
-        self.kline_windows[symbol].append(kline)
-        context = self._build_market_context(symbol, end_time)
-        context.recent_klines = list(self.kline_windows[symbol])  # 供策略回看结构
-
+        self.fusion_manager.clear(symbol)
         for strategy in self.strategies.get(symbol, []):
-            signal = strategy.generate_signal(kline, context=context)
-            if signal and self.signal_callback:
-                self.signal_callback(symbol, signal, index)
+            signal = strategy.generate_signal(quote, context=context)
+            if signal:
+                self.fusion_manager.collect_signal(symbol, signal, strategy)
+
+        fused_signal = self.fusion_manager.fuse_signals(symbol)
+        if fused_signal and self.signal_callback:
+            self.signal_callback(symbol, fused_signal, index)
 
     def _get_minute_start(self, timestamp: str) -> str:
         """将 timestamp 转为所在分钟的起始时间字符串"""

@@ -26,12 +26,11 @@ class DataFeed:
         self.ctx = QuoteContext(Config.from_env())
         self.db_manager = DatabaseManager()
         self.quote_queue = {symbol: deque(maxlen=1000) for symbol in symbols}       
-        self._kline_callback = None
+        self._quote_callback = None
         self._last_processed_minute = None
 
-    def set_kline_callback(self, callback):
-        """设置闭合1分钟K线数据回调（来自数据库或内部生成）"""
-        self._kline_callback = callback
+    def set_quote_callback(self, callback):
+        self._quote_callback = callback
 
     def on_quote(self, symbol: str, quote: PushQuote):
         """行情推送回调"""
@@ -43,24 +42,27 @@ class DataFeed:
             "volume": int(quote.current_volume or 0),
             "turnover": float(quote.current_turnover or 0.0)
         }
-        
-        current_minute = timestamp[:16]
-        q = self.quote_queue[symbol]
-        if q:
-            last_minute = q[-1]["timestamp"][:16]
-            if last_minute != current_minute:
-                closed_candles = self.db_manager.data_cache.get_cached_data(
-                    symbol,
-                    start_time=last_minute + ":00",
-                    end_time=last_minute + ":59"
-                )
-                if closed_candles and self._kline_callback:
-                    self._kline_callback(symbol, closed_candles[-1])
-                else:
-                    print(f"[{symbol}] No closed kline found for {last_minute}")
+
+        # current_minute = timestamp[:16]
+        # q = self.quote_queue[symbol]
+        # if q:
+        #     last_minute = q[-1]["timestamp"][:16]
+        #     if last_minute != current_minute:
+        #         closed_candles = self.db_manager.data_cache.get_cached_data(
+        #             symbol,
+        #             start_time=last_minute + ":00",
+        #             end_time=last_minute + ":59"
+        #         )
+        #         if closed_candles and self._kline_callback:
+        #             self._kline_callback(symbol, closed_candles[-1])
+        #         else:
+        #             print(f"[{symbol}] No closed kline found for {last_minute}")
 
         self.db_manager.data_cache.update_cache(symbol, quote_data)
         self.quote_queue[symbol].append(quote_data)
+
+        if self._quote_callback:
+            self._quote_callback(symbol, quote_data)
 
     @handle_exception
     async def start_subscription(self):

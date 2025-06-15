@@ -6,6 +6,8 @@ from strategy.strategy_utils import *
 
 
 class IndicatorStrategy(BaseStrategy):
+    strategy_category = "indicator"
+
     default_params = {
     }
 

@@ -4,10 +4,27 @@ from strategy.strategy_utils import *
 from typing import Optional, List, Dict
 from datetime import datetime
 
+class CandlePatternStrategy(BaseStrategy):
+    strategy_category = "pattern"
+
+    default_params = {
+    }
+
+    param_space = {
+    }
+
+    def __init__(self, symbol: str, **kwargs):
+        super().__init__(symbol)
+        self.params = self.default_params.copy()
+        self.params.update(kwargs)
+
+    def  generate_signal(self, context: Optional[MarketContext] = None) -> Optional[Signal]:
+        raise NotImplementedError
+
 # ========================
 # 单K线反转形态策略
 # ========================
-class SingleBarReversalPattern(BaseStrategy):
+class SingleBarReversalPattern(CandlePatternStrategy):
     default_params = {
         "min_body_ratio": 0.5,
         "wick_ratio": 2.0,
@@ -120,7 +137,7 @@ class ShootingStarPattern(SingleBarReversalPattern):
 # ========================
 # 双K线反转形态（含信号强度计算）
 # ========================
-class TwoBarReversalPattern(BaseStrategy):
+class TwoBarReversalPattern(CandlePatternStrategy):
     default_params = {
         "base_strength": 1.0,
         "max_strength": 5.0,
@@ -333,7 +350,7 @@ class DarkCloudCoverPattern(TwoBarReversalPattern):
 # ========================
 # 三K线反转形态
 # ========================
-class ThreeBarReversalPattern(BaseStrategy):
+class ThreeBarReversalPattern(CandlePatternStrategy):
     default_params = {
         "base_strength": 1.0
     }
@@ -525,7 +542,7 @@ class ThreeBlackCrowsPattern(ThreeBarReversalPattern):
 # ========================
 # 持续形态
 # ========================
-class RisingThreePattern(BaseStrategy):
+class RisingThreePattern(CandlePatternStrategy):
     default_params = {
         "max_inner_body_ratio": 0.8,  # 中间3根K线实体不大于首根K线的80%
         "min_final_close_above_first": 0.0,  # 最后一根至少收高于第一根的多少（比例）
@@ -578,7 +595,7 @@ class RisingThreePattern(BaseStrategy):
         return None
 
 
-class FallingThreePattern(BaseStrategy):
+class FallingThreePattern(CandlePatternStrategy):
     default_params = {
         "max_inner_body_ratio": 0.8,  # 中间3根K线实体不大于首根K线的80%
         "min_final_close_below_first": 0.0,  # 最后一根至少收低于第一根的多少（比例）
@@ -632,7 +649,7 @@ class FallingThreePattern(BaseStrategy):
 # 十字星
 # ========================
 
-class DojiPattern(BaseStrategy):
+class DojiPattern(CandlePatternStrategy):
     default_params = {
         "doji_threshold": 0.1,
         "signal_strength": 0.5,
@@ -681,7 +698,7 @@ class DojiPattern(BaseStrategy):
         return self.is_pattern(context.recent_klines[-1:])
 
 
-class DragonflyDojiPattern(BaseStrategy):
+class DragonflyDojiPattern(CandlePatternStrategy):
     default_params = {
         "min_lower_shadow_ratio": 0.6,
         "doji_threshold": 0.1,
@@ -743,7 +760,7 @@ class DragonflyDojiPattern(BaseStrategy):
         return self.is_pattern(context.recent_klines[-self.params["trend_window"]:])
 
 
-class GravestoneDojiPattern(BaseStrategy):
+class GravestoneDojiPattern(CandlePatternStrategy):
     default_params = {
         "min_upper_shadow_ratio": 0.6,
         "doji_threshold": 0.1,
@@ -808,7 +825,7 @@ class GravestoneDojiPattern(BaseStrategy):
 # ========================
 # 额外形态
 # ========================
-class BullishHaramiPattern(BaseStrategy):
+class BullishHaramiPattern(CandlePatternStrategy):
     default_params = {
         "max_body_ratio": 0.5,
         "signal_strength": 1.0,
@@ -860,7 +877,7 @@ class BullishHaramiPattern(BaseStrategy):
         return self.is_pattern(context.recent_klines[-2:], context)
 
 
-class BearishHaramiPattern(BaseStrategy):
+class BearishHaramiPattern(CandlePatternStrategy):
     default_params = {
         "max_body_ratio": 0.5,
         "signal_strength": 1.0,
@@ -913,7 +930,7 @@ class BearishHaramiPattern(BaseStrategy):
         return self.is_pattern(context.recent_klines[-2:], context)
 
 
-class TweezerBottomPattern(BaseStrategy):
+class TweezerBottomPattern(CandlePatternStrategy):
     default_params = {
         "max_low_diff": 0.001,
         "signal_strength": 1.0,
@@ -962,7 +979,7 @@ class TweezerBottomPattern(BaseStrategy):
         return self.is_pattern(context.recent_klines[-2:], context)
 
 
-class TweezerTopPattern(BaseStrategy):
+class TweezerTopPattern(CandlePatternStrategy):
     default_params = {
         "max_high_diff": 0.001,
         "signal_strength": 1.0,
@@ -1015,7 +1032,7 @@ class TweezerTopPattern(BaseStrategy):
 # 不确定形态
 # ========================
 
-class InsideBarPattern(BaseStrategy):
+class InsideBarPattern(CandlePatternStrategy):
     signal_type = SignalType.HOLD
     default_params = {}
     param_space = {}
@@ -1043,7 +1060,7 @@ class InsideBarPattern(BaseStrategy):
         return self.is_pattern(context.recent_klines[-2:])
 
 
-class MarubozuPattern(BaseStrategy):
+class MarubozuPattern(CandlePatternStrategy):
     default_params = {"min_body_ratio": 0.95}
     param_space = {"min_body_ratio": [0.9, 0.95, 0.98, 0.99]}
 
@@ -1084,7 +1101,7 @@ class MarubozuPattern(BaseStrategy):
             return None
         return self.is_pattern(context.recent_klines[-1:])
 
-class SpinningTopPattern(BaseStrategy):
+class SpinningTopPattern(CandlePatternStrategy):
     signal_type = SignalType.HOLD
     default_params = {"max_body_ratio": 0.3, "min_shadow_ratio": 0.3}
     param_space = {
@@ -1136,7 +1153,7 @@ class SpinningTopPattern(BaseStrategy):
             return None
         return self.is_pattern(context.recent_klines[-1:])
 
-class ThreeLineStrikePattern(BaseStrategy):
+class ThreeLineStrikePattern(CandlePatternStrategy):
     default_params = {}
     param_space = {}
 
