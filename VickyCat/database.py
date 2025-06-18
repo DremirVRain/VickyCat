@@ -30,35 +30,45 @@ class DatabaseManager:
                 symbol TEXT,
                 sequence INTEGER,
                 price REAL,
+                open REAL,
+                high REAL,
+                low REAL,
                 volume INTEGER,
                 turnover REAL,
+                current_volume INTEGER,
+                current_turnover REAL,
+                trade_status TEXT,
+                trade_session TEXT,
                 PRIMARY KEY (timestamp, symbol, sequence)
             )
         ''')
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS quote_errors (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+            CREATE TABLE IF NOT EXISTS tick_trades (
                 timestamp TEXT,
                 symbol TEXT,
+                sequence INTEGER,
                 price REAL,
                 volume INTEGER,
-                turnover REAL,
-                error_message TEXT
+                trade_type TEXT,
+                direction TEXT,
+                trade_session TEXT,
+                PRIMARY KEY (timestamp, symbol, sequence)
             )
         ''')
         self.conn.commit()
 
-    def is_trading_session(exchange: str = 'US') -> bool:
-        manager = TradingTimeManager(exchange)
-        return manager.is_trading_time()
-
-    def get_next_sequence(self, timestamp: str, symbol: str) -> int:
+    def get_next_sequence(self, table: str, timestamp: str, symbol: str) -> int:
         cursor = self.conn.cursor()
-        cursor.execute('''
-            SELECT MAX(sequence) FROM quotes WHERE timestamp = ? AND symbol = ?
+        cursor.execute(f'''
+            SELECT MAX(sequence) FROM {table} WHERE timestamp = ? AND symbol = ?
         ''', (timestamp, symbol))
         max_sequence = cursor.fetchone()[0]
         return (max_sequence + 1) if max_sequence is not None else 1
+
+    #todo: 改为外部输入
+    def is_trading_session(exchange: str = 'US') -> bool:
+        manager = TradingTimeManager(exchange)
+        return manager.is_trading_time()
 
     async def save_quotes_batch(self, quote_data_list: List[Dict[str, Any]]):
         if not quote_data_list:
@@ -76,17 +86,24 @@ class DatabaseManager:
                     timestamp = data["timestamp"]
                     key = (timestamp, symbol)
                     if key not in sequence_map:
-                        sequence_map[key] = self.get_next_sequence(timestamp, symbol)
+                        sequence_map[key] = self.get_next_sequence("quotes", timestamp, symbol)
                     else:
                         sequence_map[key] += 1
 
                     seq = sequence_map[key]
 
-                    print(f"[Quote] 插入: {timestamp} | {symbol} | {seq} | price={data['price']} vol={data['volume']} turnover={data['turnover']}")
-
                     data_to_insert.append((
                         timestamp, symbol, seq,
-                        data['price'], data['volume'], data['turnover']
+                        data.get('price', 0.0),
+                        data.get('open', 0.0),
+                        data.get('high', 0.0),
+                        data.get('low', 0.0),
+                        data.get('volume', 0),
+                        data.get('turnover', 0.0),
+                        data.get('current_volume', 0),
+                        data.get('current_turnover', 0.0),
+                        data.get('trade_status', ''),
+                        data.get('trade_session', '')
                     ))
 
                 except KeyError as e:
@@ -95,8 +112,14 @@ class DatabaseManager:
 
             if data_to_insert:
                 cursor.executemany('''
-                    INSERT INTO quotes (timestamp, symbol, sequence, price, volume, turnover)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    INSERT INTO quotes (
+                        timestamp, symbol, sequence,
+                        price, open, high, low,
+                        volume, turnover,
+                        current_volume, current_turnover,
+                        trade_status, trade_session
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', data_to_insert)
                 self.conn.commit()
 
@@ -104,27 +127,53 @@ class DatabaseManager:
                 self.log_error_data(data, msg)
 
         except Exception as e:
-            print(f"[Error] 批量插入数据失败: {e}")
+            print(f"[Error] 批量插入quote数据失败: {e}")
             self.conn.rollback()
 
-    def log_error_data(self, data: Dict[str, Any], error_message: str):
+    async def save_trades_batch(self, trades: List[Dict[str, Any]]):
+        """批量保存逐笔成交数据"""
+        if not trades:
+            return
+
         try:
             cursor = self.conn.cursor()
-            cursor.execute('''
-                INSERT INTO quote_errors (timestamp, symbol, price, volume, turnover, error_message)
-                VALUES (?, ?, ?, ?, ?, ?)
-            ''', (
-                data.get('timestamp', "N/A"),
-                data.get('symbol', "N/A"),
-                data.get('price', 0.0),
-                data.get('volume', 0),
-                data.get('turnover', 0.0),
-                error_message
-            ))
-            self.conn.commit()
+            data_to_insert = []
+            sequence_map = {}
 
-        except sqlite3.Error as e:
-            print(f"[Error] 记录异常数据失败: {e}")
+            for trade in trades:
+                symbol = trade["symbol"]
+                timestamp = trade["timestamp"]
+                key = (timestamp, symbol)
+                if key not in sequence_map:
+                    sequence_map[key] = self.get_next_sequence("tick_trades", timestamp, symbol)
+                else:
+                    sequence_map[key] += 1
+
+                seq = sequence_map[key]
+
+                data_to_insert.append((
+                    timestamp,
+                    symbol,
+                    seq,
+                    trade.get("price", 0.0),
+                    trade.get("volume", 0),
+                    trade.get("trade_type", ""),
+                    trade.get("direction", ""),
+                    trade.get("trade_session", "")
+                ))
+
+            if data_to_insert:
+                cursor.executemany('''
+                    INSERT INTO tick_trades (
+                        timestamp, symbol, sequence,
+                        price, volume,
+                        trade_type, direction, trade_session
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', data_to_insert)
+                self.conn.commit()
+
+        except Exception as e:
+            print(f"[Error] 批量插入trade数据失败: {e}")
             self.conn.rollback()
 
     def archive_old_data(self):

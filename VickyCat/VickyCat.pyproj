@@ -4,7 +4,7 @@
     <SchemaVersion>2.0</SchemaVersion>
     <ProjectGuid>4ca0cf96-71bc-4b0d-b673-5d522b7de021</ProjectGuid>
     <ProjectHome>.</ProjectHome>
-    <StartupFile>backtester.py</StartupFile>
+    <StartupFile>main.py</StartupFile>
     <SearchPath>
     </SearchPath>
     <WorkingDirectory>.</WorkingDirectory>

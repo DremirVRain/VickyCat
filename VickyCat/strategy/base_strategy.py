@@ -1,10 +1,9 @@
 ﻿# strategies/base_strategy.py
 from abc import ABC, abstractmethod
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from datetime import datetime
 from strategy.strategy_signal import Signal, SignalType, create_signal  
 from dataclasses import dataclass, field
-from collections import Union
 
 @dataclass
 class MarketContext:
