@@ -45,17 +45,17 @@ class DataFeed:
         print(symbol, quote)
         """行情推送回调"""            
         
-        # 直接从trades_msg的原始表示中提取时间戳
-        # 假设trades_msg有原始响应文本
-        if hasattr(quote, '_raw_data'):
-            # 解析_raw_data获取原始时间戳
-            pass
-        else:
-            # 使用正则从打印输出中提取
-            quote_str = str(quote)
-            utc_str = quote_str.split('timestamp: "')[1].split('"')[0]
+        # # 直接从trades_msg的原始表示中提取时间戳
+        # # 假设trades_msg有原始响应文本
+        # if hasattr(quote, '_raw_data'):
+        #     # 解析_raw_data获取原始时间戳
+        #     pass
+        # else:
+        #     # 使用正则从打印输出中提取
+        #     quote_str = str(quote)
+        #     utc_str = quote_str.split('timestamp: "')[1].split('"')[0]
         quote_data = {
-            "timestamp": utc_str,
+            "timestamp":  quote.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             "symbol": symbol,
             "price": float(quote.last_done),
             "open": float(quote.open),
@@ -82,18 +82,18 @@ class DataFeed:
         print(symbol, trades_msg)
         """逐笔成交推送回调"""
         for trade in trades_msg.trades:        
-            # 直接从trades_msg的原始表示中提取时间戳
-            # 假设trades_msg有原始响应文本
-            if hasattr(trades_msg, '_raw_data'):
-                # 解析_raw_data获取原始时间戳
-                pass
-            else:
-                # 使用正则从打印输出中提取
-                trade_str = str(trade)
-                utc_str = trade_str.split('timestamp: "')[1].split('"')[0]
+            # # 直接从trades_msg的原始表示中提取时间戳
+            # # 假设trades_msg有原始响应文本
+            # if hasattr(trades_msg, '_raw_data'):
+            #     # 解析_raw_data获取原始时间戳
+            #     pass
+            # else:
+            #     # 使用正则从打印输出中提取
+            #     trade_str = str(trade)
+            #     utc_str = trade_str.split('timestamp: "')[1].split('"')[0]
 
             trade_data = {
-                "timestamp":  utc_str,
+                "timestamp": trade.timestamp.strftime("%Y-%m-%d %H:%M:%S"),
                 "symbol": symbol,
                 "price": float(trade.price),
                 "volume": int(trade.volume),
